@@ -8,3 +8,4 @@ pydantic-settings>=2.2.1
 pyjwt>=2.8.0
 cryptography>=42.0.5
 tzdata>=2026.2
+psycopg2-binary>=2.9.9

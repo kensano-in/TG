@@ -3,6 +3,116 @@ import os
 import time
 from datetime import datetime
 
+# Setup dynamic DB detection (Supabase Postgres cloud database when DATABASE_URL is present)
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+class PostgresCursorWrapper:
+    def __init__(self, pg_cursor):
+        self.cursor = pg_cursor
+
+    def execute(self, query, params=None):
+        # Translate SQLite parameters '?' to Postgres '%s'
+        if params is not None:
+            query = query.replace("?", "%s")
+        
+        # Translate INSERT OR IGNORE syntax
+        if "INSERT OR IGNORE" in query:
+            if "settings" in query.lower():
+                query = query.replace("INSERT OR IGNORE INTO settings", "INSERT INTO settings")
+                query += " ON CONFLICT (key) DO NOTHING"
+            elif "keyword_rules" in query.lower():
+                query = query.replace("INSERT OR IGNORE INTO keyword_rules", "INSERT INTO keyword_rules")
+                query += " ON CONFLICT (keyword) DO NOTHING"
+            elif "contacts" in query.lower():
+                query = query.replace("INSERT OR IGNORE INTO contacts", "INSERT INTO contacts")
+                query += " ON CONFLICT (telegram_id) DO NOTHING"
+        
+        # Translate INSERT OR REPLACE syntax
+        if "INSERT OR REPLACE" in query:
+            if "settings" in query.lower():
+                query = query.replace("INSERT OR REPLACE INTO settings", "INSERT INTO settings")
+                query += " ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value"
+            elif "keyword_rules" in query.lower():
+                query = query.replace("INSERT OR REPLACE INTO keyword_rules", "INSERT INTO keyword_rules")
+                query += " ON CONFLICT (keyword) DO UPDATE SET response = EXCLUDED.response, match_mode = EXCLUDED.match_mode, action_type = EXCLUDED.action_type, action_value = EXCLUDED.action_value"
+        
+        # Auto-increment conversion
+        if "AUTOINCREMENT" in query:
+            query = query.replace("AUTOINCREMENT", "")
+            
+        # INTEGER PRIMARY KEY -> SERIAL PRIMARY KEY
+        if "INTEGER PRIMARY KEY" in query and "contacts" not in query.lower():
+            query = query.replace("INTEGER PRIMARY KEY", "SERIAL PRIMARY KEY")
+        elif "INTEGER PRIMARY KEY" in query and "contacts" in query.lower():
+            # Keep contacts telegram_id as BIGINT PRIMARY KEY
+            query = query.replace("INTEGER PRIMARY KEY", "BIGINT PRIMARY KEY")
+
+        # sqlite DATETIME/INTEGER conversion mappings
+        if "julianday" in query.lower():
+            # Custom translation for approx response time query on postgres
+            query = """
+                SELECT AVG(EXTRACT(EPOCH FROM (a.timestamp::timestamp - c.timestamp::timestamp)))
+                FROM messages c
+                JOIN messages a ON a.telegram_id = c.telegram_id AND a.sender = 'assistant' AND a.id = (
+                    SELECT MIN(id) FROM messages WHERE telegram_id = c.telegram_id AND sender = 'assistant' AND id > c.id
+                )
+                WHERE c.sender = 'contact'
+            """
+            params = None
+
+        if "date(" in query.lower():
+            query = query.replace("date(timestamp)", "timestamp::date")
+            query = query.replace("date(timestamp) DESC", "timestamp::date DESC")
+            query = query.replace("GROUP BY date(timestamp)", "GROUP BY timestamp::date")
+            query = query.replace("ORDER BY date(timestamp) DESC", "ORDER BY timestamp::date DESC")
+
+        # Execute query
+        if params is not None:
+            # Handle float/int to string coercions if necessary
+            self.cursor.execute(query, params)
+        else:
+            self.cursor.execute(query)
+        return self
+
+    def fetchone(self):
+        row = self.cursor.fetchone()
+        if row is None:
+            return None
+        return row
+
+    def fetchall(self):
+        return self.cursor.fetchall()
+
+    @property
+    def rowcount(self):
+        return self.cursor.rowcount
+
+    def __iter__(self):
+        return iter(self.cursor)
+
+class PostgresConnectionWrapper:
+    def __init__(self, pg_conn):
+        self.conn = pg_conn
+
+    def cursor(self):
+        import psycopg2.extras
+        # DictCursor lets us access columns as row['key'] as sqlite3.Row does
+        return PostgresCursorWrapper(self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor))
+
+    def commit(self):
+        self.conn.commit()
+
+    def rollback(self):
+        self.conn.rollback()
+
+    def close(self):
+        self.conn.close()
+
+    def execute(self, query, params=None):
+        cursor = self.cursor()
+        cursor.execute(query, params)
+        return cursor
+
 DB_FILE = os.path.join(os.path.dirname(__file__), "manager.db")
 
 # Cache for settings table to reduce disk/db query latency
@@ -13,8 +123,7 @@ CACHE_TTL = 3.0 # seconds
 def load_settings_cache():
     global _settings_cache, _settings_cache_time
     try:
-        conn = sqlite3.connect(DB_FILE, timeout=10.0)
-        conn.row_factory = sqlite3.Row
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT key, value FROM settings")
         rows = cursor.fetchall()
@@ -25,18 +134,25 @@ def load_settings_cache():
         print(f"Error loading settings cache: {e}")
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_FILE, timeout=10.0)
-    conn.row_factory = sqlite3.Row
-    return conn
+    if DATABASE_URL:
+        import psycopg2
+        # Auto-reconnection adapter for postgres
+        conn = psycopg2.connect(DATABASE_URL)
+        return PostgresConnectionWrapper(conn)
+    else:
+        conn = sqlite3.connect(DB_FILE, timeout=10.0)
+        conn.row_factory = sqlite3.Row
+        return conn
 
 def init_db():
     conn = get_db_connection()
-    # Enable WAL mode and synchronous normal once at startup for speed & safety
-    try:
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA synchronous=NORMAL")
-    except Exception:
-        pass
+    if not DATABASE_URL:
+        # Enable WAL mode and synchronous normal once at startup for speed & safety
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+        except Exception:
+            pass
     cursor = conn.cursor()
     
     # Create contacts table
