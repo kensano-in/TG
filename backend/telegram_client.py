@@ -1339,8 +1339,8 @@ class TelegramManager:
             # Show a typing indicator
             await event.respond("⏳ <i>Gemini AI is processing context...</i>")
             try:
-                from backend.ai_engine import generate_content_with_retry
-                res, _ = generate_content_with_retry(prompts.get(cmd))
+                import ai_engine
+                res, _ = ai_engine.generate_content_with_retry(prompts.get(cmd))
                 return f"🧠 <b>AI ASSISTANT {cmd.upper()} RESULT:</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n\n{res}"
             except Exception as e:
                 return f"❌ <b>Gemini Error:</b> {str(e)}"
@@ -1349,14 +1349,21 @@ class TelegramManager:
         elif cmd in ["stats", "activity", "active", "topusers", "messages", "members"]:
             conn = db.get_db_connection()
             cursor = conn.cursor()
+
+            def _sc(row):
+                """Dict-safe scalar: works for both sqlite3.Row and psycopg2 DictCursor."""
+                if row is None: return 0
+                if isinstance(row, dict): return list(row.values())[0]
+                try: return row[0]
+                except Exception: return 0
             
             if cmd == "stats":
                 cursor.execute("SELECT COUNT(*) FROM messages")
-                total_msgs = cursor.fetchone()[0]
+                total_msgs = _sc(cursor.fetchone())
                 cursor.execute("SELECT COUNT(*) FROM logs")
-                total_logs = cursor.fetchone()[0]
+                total_logs = _sc(cursor.fetchone())
                 cursor.execute("SELECT COUNT(*) FROM contacts WHERE is_muted = 1")
-                total_muted = cursor.fetchone()[0]
+                total_muted = _sc(cursor.fetchone())
                 conn.close()
                 return (
                     f"📊 <b>COET BOT TELEMETRY METRICS</b>\n"
@@ -1371,19 +1378,35 @@ class TelegramManager:
                 cursor.execute("SELECT level, COUNT(*) FROM logs GROUP BY level")
                 rows = cursor.fetchall()
                 conn.close()
-                resp = "📈 <b>EVENT LOGS BREAKDOWN (SQLite)</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n"
+                resp = "📈 <b>EVENT LOGS BREAKDOWN</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n"
                 for r in rows:
-                    resp += f"• {r[0]}: <b>{r[1]}</b> logs\n"
+                    if isinstance(r, dict):
+                        vals = list(r.values())
+                        level_name, cnt = vals[0], vals[1]
+                    else:
+                        level_name, cnt = r[0], r[1]
+                    resp += f"• {level_name}: <b>{cnt}</b> logs\n"
                 return resp
             elif cmd in ["active", "topusers"]:
                 cursor.execute("SELECT telegram_id, COUNT(*) as count FROM messages GROUP BY telegram_id ORDER BY count DESC LIMIT 5")
                 rows = cursor.fetchall()
                 resp = "🏆 <b>TOP ACTIVE CONSOLE CLIENTS</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n"
                 for i, r in enumerate(rows):
-                    cursor.execute("SELECT first_name, last_name, username FROM contacts WHERE telegram_id = ?", (r[0],))
+                    if isinstance(r, dict):
+                        tid = r.get('telegram_id') or list(r.values())[0]
+                        msg_count = r.get('count') or list(r.values())[1]
+                    else:
+                        tid, msg_count = r[0], r[1]
+                    cursor.execute("SELECT first_name, last_name, username FROM contacts WHERE telegram_id = ?", (tid,))
                     c = cursor.fetchone()
-                    name = f"{c[0]} {c[1]}".strip() if c else f"ID: {r[0]}"
-                    resp += f"{i+1}. <b>{name}</b> - {r[1]} messages\n"
+                    if c:
+                        if isinstance(c, dict):
+                            name = f"{c.get('first_name', '')} {c.get('last_name', '')}".strip() or f"ID: {tid}"
+                        else:
+                            name = f"{c[0]} {c[1]}".strip() or f"ID: {tid}"
+                    else:
+                        name = f"ID: {tid}"
+                    resp += f"{i+1}. <b>{name}</b> - {msg_count} messages\n"
                 conn.close()
                 return resp
             elif cmd == "messages":
@@ -1392,11 +1415,16 @@ class TelegramManager:
                 conn.close()
                 resp = "💬 <b>MESSAGE TRAFFIC AUDIT</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n"
                 for r in rows:
-                    resp += f"• {r[0].capitalize()}: <b>{r[1]}</b> messages\n"
+                    if isinstance(r, dict):
+                        vals = list(r.values())
+                        sender, cnt = vals[0], vals[1]
+                    else:
+                        sender, cnt = r[0], r[1]
+                    resp += f"• {sender.capitalize()}: <b>{cnt}</b> messages\n"
                 return resp
             elif cmd == "members":
                 cursor.execute("SELECT COUNT(*) FROM contacts")
-                cnt = cursor.fetchone()[0]
+                cnt = _sc(cursor.fetchone())
                 conn.close()
                 return f"👥 <b>Tracked Client Vault Capacity:</b> <b>{cnt}</b> contacts registered in database."
 
