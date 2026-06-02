@@ -346,6 +346,14 @@ def log_event(level, message):
     conn.close()
     print(f"[{level}] {message}")
 
+def get_logs(limit=150):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM logs ORDER BY id DESC LIMIT ?", (limit,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
 # Contact Operations
 def get_or_create_contact(telegram_id, first_name="", last_name="", username=""):
     conn = get_db_connection()
