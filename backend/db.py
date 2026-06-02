@@ -135,6 +135,7 @@ def load_settings_cache():
 def get_db_connection():
     db_url = os.getenv("DATABASE_URL")
     if db_url:
+        db_url = db_url.strip().strip("'").strip('"')
         import psycopg2
         # If it looks like a URI, parse it into connection kwargs to handle special characters properly
         if db_url.startswith("postgresql://") or db_url.startswith("postgres://"):
