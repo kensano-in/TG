@@ -953,6 +953,7 @@ class TelegramManager:
                             )
                             setup_buttons = [
                                 [Button.inline("🗺️ Onboarding & Deploy Roadmap", b"pub_roadmap")],
+                                [Button.inline("🤝 Escrow Services Setup (10 Pages)", b"pub_serv_wiki")],
                                 [Button.url("💬 Setup Your Autopilot (@shinichirofr)", "https://t.me/shinichirofr")],
                                 [Button.inline("⬅️ Back to Main Menu", b"pub_back")]
                             ]
@@ -1016,6 +1017,7 @@ class TelegramManager:
                                 "<i>Explore our specs or read our legal policies:</i>"
                             )
                             details_buttons = [
+                                [Button.inline("⚙️ Technical Wiki (10 Pages)", b"pub_tech_wiki")],
                                 [Button.inline("🎛️ Hardware Hosting Architecture", b"pub_infra_hardware")],
                                 [Button.inline("🛡️ Anti-DDoS & Network Security", b"pub_infra_network")],
                                 [Button.inline("🔒 Cryptographic Privacy Policy", b"pub_privacy")],
@@ -1348,6 +1350,7 @@ class TelegramManager:
                                 "<i>Explore specialized escrow specifications:</i>"
                             )
                             security_buttons = [
+                                [Button.inline("🛡️ Compliance & Security Audit (10 Pages)", b"pub_sec_wiki")],
                                 [Button.inline("⚖️ Dispute Arbitration Protocol", b"pub_escrow_dispute")],
                                 [Button.inline("⛓️ Supported Chains & Assets", b"pub_escrow_assets")],
                                 [Button.inline("⬅️ Back to Main Menu", b"pub_back")]
@@ -1410,6 +1413,7 @@ class TelegramManager:
                                 "<i>Read detailed client category stories:</i>"
                             )
                             vouches_buttons = [
+                                [Button.inline("📈 Industry Blueprints (10 Pages)", b"pub_case_wiki")],
                                 [Button.inline("📈 OTC Broker Success Stories", b"pub_vouches_brokers")],
                                 [Button.inline("🛡️ Channel Admin Case Studies", b"pub_vouches_admins")],
                                 [Button.inline("⬅️ Back to Main Menu", b"pub_back")]
@@ -1534,6 +1538,7 @@ class TelegramManager:
                                 "<i>Select a plan model to view detailed licensing specs:</i>"
                             )
                             pricing_buttons = [
+                                [Button.inline("📋 Support SLA & Licensing (10 Pages)", b"pub_price_wiki")],
                                 [Button.inline("💼 Enterprise Dedicated Instance", b"pub_price_enterprise")],
                                 [Button.inline("🤝 Franchise & Reseller License", b"pub_price_reseller")],
                                 [Button.inline("📜 SLA & Terms & Conditions", b"pub_terms")],
@@ -1602,7 +1607,269 @@ class TelegramManager:
                             ]
                             await event.edit(terms_text, buttons=terms_buttons, parse_mode="html")
                             return
-                            
+
+                        # ==================== WIKI DIRECTORIES GATEWAYS ====================
+
+                        elif data == b"pub_tech_wiki":
+                            tech_wiki_text = (
+                                "⚙️ <b>TECHNICAL ARCHITECTURE WIKI (10 PAGES)</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>COET runs on a bare-metal virtualization cluster designed for high-concurrency event loops. Select a technical sub-page to view spec sheets:</blockquote>\n\n"
+                                "<b>📁 TECHNICAL SPEC SHEETS:</b>\n"
+                                "• <b>MTProto Spec</b>: Custom MTProto protocol handling.\n"
+                                "• <b>Asyncio Loop</b>: High-performance Python async loop tuning.\n"
+                                "• <b>SQLite WAL</b>: Write-ahead logging concurrent access.\n"
+                                "• <b>Tokenization</b>: Gemini RAG context limits.\n"
+                                "• <b>API Pool Matrix</b>: Keypool throttling algorithms.\n"
+                                "• <b>Memory Cache</b>: Ultra-low latency Key-Value registers.\n"
+                                "• <b>Webhook Queues</b>: Transaction event payload queues.\n"
+                                "• <b>Websocket Stream</b>: Client dashboard feed broadcasts.\n"
+                                "• <b>Systemd Daemon</b>: Daemon process crash recovery.\n"
+                                "• <b>Stream Logging</b>: Log aggregation system metrics."
+                            )
+                            tech_wiki_buttons = [
+                                [Button.inline("MTProto Spec", b"pub_tech_mtproto"), Button.inline("Asyncio Loop", b"pub_tech_asyncio")],
+                                [Button.inline("SQLite WAL", b"pub_tech_sqlite"), Button.inline("Tokenization", b"pub_tech_tokens")],
+                                [Button.inline("API Pool Matrix", b"pub_tech_pools"), Button.inline("Memory Cache", b"pub_tech_kvstore")],
+                                [Button.inline("Webhook Queues", b"pub_tech_webhooks"), Button.inline("Websocket Stream", b"pub_tech_websockets")],
+                                [Button.inline("Systemd Daemon", b"pub_tech_process"), Button.inline("Stream Logging", b"pub_tech_logging")],
+                                [Button.inline("⬅️ Back to Specs Menu", b"pub_details")]
+                            ]
+                            await event.edit(tech_wiki_text, buttons=tech_wiki_buttons, parse_mode="html")
+                            return
+
+                        elif data == b"pub_sec_wiki":
+                            sec_wiki_text = (
+                                "🛡️ <b>COMPLIANCE & SECURITY AUDIT WIKI (10 PAGES)</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>Explore our core vulnerability mitigation matrix and encryption policies:</blockquote>"
+                            )
+                            sec_wiki_buttons = [
+                                [Button.inline("API Key Sec", b"pub_sec_api_keys"), Button.inline("2FA Proxies", b"pub_sec_hijack")],
+                                [Button.inline("Flood Shield", b"pub_sec_ratelimit"), Button.inline("GDPR Compliance", b"pub_sec_gdpr")],
+                                [Button.inline("Scam Sync DB", b"pub_sec_scam_db"), Button.inline("Multi-sig Payout", b"pub_sec_multisig")],
+                                [Button.inline("Reversal Shield", b"pub_sec_chargeback"), Button.inline("Dispute Mediation", b"pub_sec_arbitration")],
+                                [Button.inline("Panic Codes", b"pub_sec_panic"), Button.inline("Penetration Audit", b"pub_sec_audit")],
+                                [Button.inline("⬅️ Back to Escrow & Sec", b"pub_security")]
+                            ]
+                            await event.edit(sec_wiki_text, buttons=sec_wiki_buttons, parse_mode="html")
+                            return
+
+                        elif data == b"pub_serv_wiki":
+                            serv_wiki_text = (
+                                "🤝 <b>ESCROW SERVICES SETUP WIKI (10 PAGES)</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>Select an escrow service implementation card to view setup metrics:</blockquote>"
+                            )
+                            serv_wiki_buttons = [
+                                [Button.inline("Verification", b"pub_serv_verification"), Button.inline("Group Bot Setup", b"pub_serv_group_bot")],
+                                [Button.inline("UPI Configs", b"pub_serv_upi"), Button.inline("Multi-sigs Release", b"pub_serv_payouts")],
+                                [Button.inline("Fee Sheets", b"pub_serv_fees"), Button.inline("Custody Wallet", b"pub_serv_custody")],
+                                [Button.inline("Cross-border", b"pub_serv_crossborder"), Button.inline("Forms Builder", b"pub_serv_forms")],
+                                [Button.inline("Ledger Sync", b"pub_serv_ledger"), Button.inline("CAPTCHA Gates", b"pub_serv_captcha")],
+                                [Button.inline("⬅️ Back to Setup Menu", b"pub_setup")]
+                            ]
+                            await event.edit(serv_wiki_text, buttons=serv_wiki_buttons, parse_mode="html")
+                            return
+
+                        elif data == b"pub_price_wiki":
+                            price_wiki_text = (
+                                "📋 <b>SUPPORT SLA & LICENSING WIKI (10 PAGES)</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>Select a support or server license card to view billing structures:</blockquote>"
+                            )
+                            price_wiki_buttons = [
+                                [Button.inline("Uptime SLA", b"pub_price_sla"), Button.inline("24/7 Priority", b"pub_price_priority")],
+                                [Button.inline("Model Tuning", b"pub_price_training"), Button.inline("Domain Whitelabel", b"pub_price_whitelabel")],
+                                [Button.inline("GPU Clusters", b"pub_price_gpu"), Button.inline("Rate Limits", b"pub_price_rate_tiers")],
+                                [Button.inline("Service Credits", b"pub_price_refunds"), Button.inline("Custom Code", b"pub_price_custom_code")],
+                                [Button.inline("Disaster Recovery", b"pub_price_recovery"), Button.inline("Volume Discount", b"pub_price_volume")],
+                                [Button.inline("⬅️ Back to Pricing Menu", b"pub_pricing")]
+                            ]
+                            await event.edit(price_wiki_text, buttons=price_wiki_buttons, parse_mode="html")
+                            return
+
+                        elif data == b"pub_case_wiki":
+                            case_wiki_text = (
+                                "📈 <b>INDUSTRY BLUEPRINTS WIKI (10 PAGES)</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>Select a use case blueprint to examine deployment benchmarks:</blockquote>"
+                            )
+                            case_wiki_buttons = [
+                                [Button.inline("Crypto Broker", b"pub_case_crypto"), Button.inline("Gaming Shop", b"pub_case_gaming")],
+                                [Button.inline("Account Trade", b"pub_case_accounts"), Button.inline("Virtual Goods", b"pub_case_goods")],
+                                [Button.inline("Agency Pipeline", b"pub_case_software"), Button.inline("Spam Blocking", b"pub_case_moderation")],
+                                [Button.inline("DNA Cloning Review", b"pub_case_style"), Button.inline("Concurrency Load", b"pub_case_load")],
+                                [Button.inline("Server Migration", b"pub_case_migration"), Button.inline("Deploy Blueprint", b"pub_case_blueprint")],
+                                [Button.inline("⬅️ Back to Vouches", b"pub_vouches")]
+                            ]
+                            await event.edit(case_wiki_text, buttons=case_wiki_buttons, parse_mode="html")
+                            return
+
+                        # ==================== 50 NEW WIKI SUB-PAGES HANDLERS ====================
+
+                        # 1. Tech Stack Sub-pages (10 Pages)
+                        elif data == b"pub_tech_mtproto":
+                            await event.edit("<b>⚙️ SPEC SHEET: MTPROTO PROTOCOL CLIENT</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Core: Telethon Async MTProto Client.\n• Packet Delay: Sub-10ms roundtrips.\n• Security: Encrypted MTProto payload channel.", buttons=[[Button.inline("⬅️ Back to Tech Wiki", b"pub_tech_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_tech_asyncio":
+                            await event.edit("<b>⚙️ SPEC SHEET: PYTHON ASYNCIO EVENT LOOP</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Loop: Dynamic epoll loop selector on Linux instances.\n• Concurrency: Non-blocking multi-thread execution.\n• Throughput: 100+ tasks concurrent throughput limit.", buttons=[[Button.inline("⬅️ Back to Tech Wiki", b"pub_tech_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_tech_sqlite":
+                            await event.edit("<b>⚙️ SPEC SHEET: SQLITE WAL CONCURRENCY</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Journal Mode: Write-Ahead Logging (WAL).\n• Lockout Mitigation: Simultaneous reads and writes.\n• Threading: Serialized cache execution mode.", buttons=[[Button.inline("⬅️ Back to Tech Wiki", b"pub_tech_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_tech_tokens":
+                            await event.edit("<b>⚙️ SPEC SHEET: TOKENIZATION ENGINE</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Model Context: Gemini RAG context limits.\n• Context Width: Feed 100+ historical messages dynamically.\n• Latency: High context inputs analyzed in 1.2 seconds.", buttons=[[Button.inline("⬅️ Back to Tech Wiki", b"pub_tech_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_tech_pools":
+                            await event.edit("<b>⚙️ SPEC SHEET: API ROTATION POOLS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• API Rotation: Alternates 5+ keys sequentially.\n• Fallback: Cooldown on HTTP 429 rate limit triggers.\n• Key Pool Health: Automated ping check routines.", buttons=[[Button.inline("⬅️ Back to Tech Wiki", b"pub_tech_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_tech_kvstore":
+                            await event.edit("<b>⚙️ SPEC SHEET: CACHE & LOCAL KV STORE</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• KV Store: Local in-memory dictionary register.\n• Sync: Disk write buffers trigger on settings updates.\n• Speed: Key-value retrieval latencies sub-0.1ms.", buttons=[[Button.inline("⬅️ Back to Tech Wiki", b"pub_tech_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_tech_webhooks":
+                            await event.edit("<b>⚙️ SPEC SHEET: WEBHOOK QUEUES</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Queue Type: Async FIFO queues for webhook retries.\n• Retries: Exponential backoff limits up to 5 attempts.\n• Payload: JSON formatting on standard events.", buttons=[[Button.inline("⬅️ Back to Tech Wiki", b"pub_tech_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_tech_websockets":
+                            await event.edit("<b>⚙️ SPEC SHEET: WEBSOCKET STREAM LOOPS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Connection Type: Async loop broadcasting system status.\n• Dashboard Sync: Sends data updates to front-end instantly.\n• Security: Closed socket verification handshakes.", buttons=[[Button.inline("⬅️ Back to Tech Wiki", b"pub_tech_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_tech_process":
+                            await event.edit("<b>⚙️ SPEC SHEET: SYSTEMD SERVICE MANAGER</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Process Manager: Linux Systemd core daemon.\n• Auto-Restart: Configured to reboot bot on any failure.\n• Monitoring: Watchdog loops trace thread blocks.", buttons=[[Button.inline("⬅️ Back to Tech Wiki", b"pub_tech_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_tech_logging":
+                            await event.edit("<b>⚙️ SPEC SHEET: LOG AGGREGATION & STREAMING</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Output Format: JSON formatted event logs.\n• Debug Level: Dynamic logging level adjust rules.\n• Persistence: Keeps logs on local container for 7 days.", buttons=[[Button.inline("⬅️ Back to Tech Wiki", b"pub_tech_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+
+                        # 2. Compliance & Audit Sub-pages (10 Pages)
+                        elif data == b"pub_sec_api_keys":
+                            await event.edit("<b>🛡️ AUDIT CARD: CRYPTOGRAPHIC API KEY SECURITY</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Secret storage: Rotator key files encrypted locally.\n• Rotation: Automated API key cycling avoids rate bans.\n• Revocation: Wipe keys via control console instantly.", buttons=[[Button.inline("⬅️ Back to Compliance Wiki", b"pub_sec_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_sec_hijack":
+                            await event.edit("<b>🛡️ AUDIT CARD: 2FA PROXIES & HIJACK SHIELDS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Session Shield: Detects geographic login changes.\n• Proxy Gate: Blocks session hijack attempts.\n• Verification: Triggers offline alerts to the owner.", buttons=[[Button.inline("⬅️ Back to Compliance Wiki", b"pub_sec_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_sec_ratelimit":
+                            await event.edit("<b>🛡️ AUDIT CARD: BOT FLOOD & RATE LIMIT SHIELDS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Rate Limits: Limits user trigger requests to 5 per minute.\n• Spam Block: Auto-mutes users sending concurrent messages.\n• Cooldown: Cooldown timers automatically clear.", buttons=[[Button.inline("⬅️ Back to Compliance Wiki", b"pub_sec_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_sec_gdpr":
+                            await event.edit("<b>🛡️ AUDIT CARD: DATA PROTECTION REGULATION COMPLIANCE</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• GDPR Compliance: Local message data encrypted.\n• Forget Option: Users can request complete history erasure.\n• Exclusions: Zero tracking pixels or analytical cookies.", buttons=[[Button.inline("⬅️ Back to Compliance Wiki", b"pub_sec_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_sec_scam_db":
+                            await event.edit("<b>🛡️ AUDIT CARD: SCAMMER DATABASE SYNCHRONIZATION</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Sync Schedule: Pulls scam registries every 12 hours.\n• Impersonator Sweeps: Detects fake support usernames.\n• Block Action: Auto-flags matching profiles instantly.", buttons=[[Button.inline("⬅️ Back to Compliance Wiki", b"pub_sec_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_sec_multisig":
+                            await event.edit("<b>🛡️ AUDIT CARD: MULTI-SIG PAYOUT CONTROLS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Payout Logic: Requires two signatures for escrow release.\n• Multi-Sig Address: Generated dynamically on setup.\n• Timeout Lockout: Locks funds until deal is cleared.", buttons=[[Button.inline("⬅️ Back to Compliance Wiki", b"pub_sec_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_sec_chargeback":
+                            await event.edit("<b>🛡️ AUDIT CARD: REVERSAL & CHARGEBACK PROTECTION</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Verification: Dynamic checkout invoices are non-reversible.\n• Escrow release: Released only on confirmation logs.\n• Fraud Check: Flags unusual user transaction patterns.", buttons=[[Button.inline("⬅️ Back to Compliance Wiki", b"pub_sec_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_sec_arbitration":
+                            await event.edit("<b>🛡️ AUDIT CARD: DISPUTE MEDIATION COMPLIANCE</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Resolution: Disputes routed to third-party mediator.\n• Proof: Event logs lock instantly on hold commands.\n• Release: Locked until mediator sign-off confirmation.", buttons=[[Button.inline("⬅️ Back to Compliance Wiki", b"pub_sec_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_sec_panic":
+                            await event.edit("<b>🛡️ AUDIT CARD: CORE SYSTEM EMERGENCY PANIC LOCKS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Panic trigger: Instantly suspends all AI chat event loops.\n• State: Locks SQLite databases to read-only state.\n• Release: Owner must verify system logs to unlock.", buttons=[[Button.inline("⬅️ Back to Compliance Wiki", b"pub_sec_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_sec_audit":
+                            await event.edit("<b>🛡️ AUDIT CARD: PENETRATION TESTING & SECURITY AUDITS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Core Security: Code reviewed by independent developers.\n• Leak Prevention: Telemetry parameters omit API keys.\n• Port Policy: Closed internal Docker container setup.", buttons=[[Button.inline("⬅️ Back to Compliance Wiki", b"pub_sec_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+
+                        # 3. Escrow Services Sub-pages (10 Pages)
+                        elif data == b"pub_serv_verification":
+                            await event.edit("<b>🤝 SETUP CARD: CRYPTOGRAPHIC VERIFICATION</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Deal Verification: Check digital signatures before releases.\n• Verification: Scans blockchain transaction receipts.\n• Speed: Validates transaction IDs within 12 seconds.", buttons=[[Button.inline("⬅️ Back to Escrow Wiki", b"pub_serv_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_serv_group_bot":
+                            await event.edit("<b>🤝 SETUP CARD: GROUP BOT INTEGRATIONS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Group core: Install Coet as moderator in target chats.\n• Interaction: Group members use escrow inline triggers.\n• Customization: Group administrators set fee scales.", buttons=[[Button.inline("⬅️ Back to Escrow Wiki", b"pub_serv_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_serv_upi":
+                            await event.edit("<b>🤝 SETUP CARD: UPI PAYMENTS CONFIGURATIONS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• FIAT Gate: Setup Indian banking UPI handles.\n• Auto QR: Renders UPI payment codes in-chat.\n• Verification: Checks transactions against UTR hashes.", buttons=[[Button.inline("⬅️ Back to Escrow Wiki", b"pub_serv_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_serv_payouts":
+                            await event.edit("<b>🤝 SETUP CARD: MULTI-SIG RELEASE DETAILS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Signatures: Requires admin signature and seller receipt.\n• Delay: Optional 24h settlement holding period.\n• Chain Support: Ethereum, Tron, and Sol balance checks.", buttons=[[Button.inline("⬅️ Back to Escrow Wiki", b"pub_serv_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_serv_fees":
+                            await event.edit("<b>🤝 SETUP CARD: TRANSACTION FEE SCHEDULES</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Fees: Dynamic calculations based on transaction size.\n• Config: Flat fee or percentage options (e.g. 5% fee).\n• Discounting: Discount configurations for VIP brokers.", buttons=[[Button.inline("⬅️ Back to Escrow Wiki", b"pub_serv_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_serv_custody":
+                            await event.edit("<b>🤝 SETUP CARD: CUSTODY COLD WALLETS SETUP</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Storage: Deposit funds directly to offline addresses.\n• Tracking: Watches address balances using node APIs.\n• Security: Private keys are held offline by developers.", buttons=[[Button.inline("⬅️ Back to Escrow Wiki", b"pub_serv_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_serv_crossborder":
+                            await event.edit("<b>🤝 SETUP CARD: CROSS-BORDER TRADE SETTLEMENTS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Settle Options: Convert fiat USD to local payment loops.\n• Currencies: INR, USD, and AED settlement targets.\n• Compliance: Tracks client identification logs.", buttons=[[Button.inline("⬅️ Back to Escrow Wiki", b"pub_serv_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_serv_forms":
+                            await event.edit("<b>🤝 SETUP CARD: AUTOMATED FORMS BUILDER</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Forms: Setup target buyer and seller deal sheets.\n• Sync: Fills forms using chat parameters.\n• Export: Generates signed deal PDF invoices.", buttons=[[Button.inline("⬅️ Back to Escrow Wiki", b"pub_serv_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_serv_ledger":
+                            await event.edit("<b>🤝 SETUP CARD: DATABASE LEDGER SYNC ROUTINES</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Sync Type: Export transaction databases daily.\n• Files: Downloads database state in CSV format.\n• Storage: Automated backups saved on secure drives.", buttons=[[Button.inline("⬅️ Back to Escrow Wiki", b"pub_serv_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_serv_captcha":
+                            await event.edit("<b>🤝 SETUP CARD: CAPTCHA ONBOARDING GATES</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• CAPTCHAs: Math challenge and button gate formats.\n• Settings: Auto-restrict members until verified.\n• Uptime: Reduces chat moderator loads by 80%.", buttons=[[Button.inline("⬅️ Back to Escrow Wiki", b"pub_serv_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+
+                        # 4. Licensing SLA Sub-pages (10 Pages)
+                        elif data == b"pub_price_sla":
+                            await event.edit("<b>📋 SLA SPECS: SERVICE LEVEL AGREEMENT METRICS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Core Uptime SLA: 99.9% uptime guarantees.\n• Downtime credit: License extensions applied on errors.\n• Server latency: Processing responses targeted under 2s.", buttons=[[Button.inline("⬅️ Back to SLA Wiki", b"pub_price_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_price_priority":
+                            await event.edit("<b>📋 SLA SPECS: 24/7 PRIORITY SUPPORT CHANNELS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Response Time: SLA targets developer response in 15m.\n• Support Channels: Direct phone link and chat groups.\n• Scope: Core setup re-building and recovery operations.", buttons=[[Button.inline("⬅️ Back to SLA Wiki", b"pub_price_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_price_training":
+                            await event.edit("<b>📋 SLA SPECS: MODEL TUNING & TRAINING FEES</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Custom Training: Analyze custom history data logs.\n• Dynamic updates: Updates persona rules for $10/rebuild.\n• Scope: Refine writing styles, slang, and casings.", buttons=[[Button.inline("⬅️ Back to SLA Wiki", b"pub_price_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_price_whitelabel":
+                            await event.edit("<b>📋 SLA SPECS: DOMAIN WHITELABEL OPTIONS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Domain sync: Hook custom domain names to admin dashboards.\n• Styling: Apply whitelabel logos and brand settings.\n• Cost: Whitelabel licensing costs $15/month.", buttons=[[Button.inline("⬅️ Back to SLA Wiki", b"pub_price_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_price_gpu":
+                            await event.edit("<b>📋 SLA SPECS: DEDICATED GPU CLUSTER ALLOCATIONS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• GPU Hardware: Nvidia H100 dedicated instances.\n• Concurrency: Processing speeds under 100ms.\n• Scope: Corporate plans with extreme query speeds.", buttons=[[Button.inline("⬅️ Back to SLA Wiki", b"pub_price_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_price_rate_tiers":
+                            await event.edit("<b>📋 SLA SPECS: API RATE LIMIT TIERS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Standard Plan: Max 500 AI queries per day.\n• Custom RAG: Limits up to 5,000 queries per day.\n• Enterprise: Unlimited API rate limit setups.", buttons=[[Button.inline("⬅️ Back to SLA Wiki", b"pub_price_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_price_refunds":
+                            await event.edit("<b>📋 SLA SPECS: REFUND & CREDIT TERM AGREEMENTS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Refund Options: Paid $2 trial non-refundable.\n• SLA credits: Automated credit adjustments on outages.\n• Cancellation: Cancel monthly subscription cycles anytime.", buttons=[[Button.inline("⬅️ Back to SLA Wiki", b"pub_price_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_price_custom_code":
+                            await event.edit("<b>📋 SLA SPECS: CUSTOM INTEGRATIONS DEVELOPMENT</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Coding scope: Custom database, payment integrations.\n• Developer cost: Standard developer rates at $50/hour.\n• Timeframes: Average updates complete within 48 hours.", buttons=[[Button.inline("⬅️ Back to SLA Wiki", b"pub_price_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_price_recovery":
+                            await event.edit("<b>📋 SLA SPECS: DISASTER RECOVERY & BACKUPS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Backup: Full database backup cycles every 6 hours.\n• Restoration: Fast restore timeframes under 15 minutes.\n• Server sync: Offsite database nodes operational.", buttons=[[Button.inline("⬅️ Back to SLA Wiki", b"pub_price_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_price_volume":
+                            await event.edit("<b>📋 SLA SPECS: VOLUME & RESELLER PLANS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Resellers: Discounts start on 5+ bot setups.\n• License rates: Save up to 50% on multi-instance setups.\n• Control: Reseller panel manages deployment tasks.", buttons=[[Button.inline("⬅️ Back to SLA Wiki", b"pub_price_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+
+                        # 5. Case Studies Sub-pages (10 Pages)
+                        elif data == b"pub_case_crypto":
+                            await event.edit("<b>📈 BLUEPRINT: CRYPTO BROKERS ESCROW DEPLOYMENT</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Target: Automating wallet updates for OTC groups.\n• Concurrency: Handles 200+ deal inquiries daily.\n• Uptime: Stable performance with zero wallet errors.", buttons=[[Button.inline("⬅️ Back to Case Wiki", b"pub_case_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_case_gaming":
+                            await event.edit("<b>📈 BLUEPRINT: GAMING ASSET STORES MODERATION</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Target: Virtual items delivery and checkout gates.\n• Settings: Auto-sends payments QR strings.\n• Result: Reduced customer checkout steps by 60%.", buttons=[[Button.inline("⬅️ Back to Case Wiki", b"pub_case_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_case_accounts":
+                            await event.edit("<b>📈 BLUEPRINT: SOCIAL MEDIA ACCOUNT BROKERS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Target: Accounts escrow and verification.\n• Flows: Verifies login details through API triggers.\n• Speed: Speeds up account releases by 70%.", buttons=[[Button.inline("⬅️ Back to Case Wiki", b"pub_case_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_case_goods":
+                            await event.edit("<b>📈 BLUEPRINT: VIRTUAL GOODS RESELLERS AUTOMATION</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Target: Licenses and key distribution chat flows.\n• Setup: Hook database key databases to bot logic.\n• ROI Result: Automated 85% of total sales queries.", buttons=[[Button.inline("⬅️ Back to Case Wiki", b"pub_case_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_case_software":
+                            await event.edit("<b>📈 BLUEPRINT: AGENCY DEVELOPMENT PIPELINE</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Target: Ticket collection and deadline reminders.\n• Sync: Sync developer channels with GitHub tasks.\n• Uptime: Dynamic GitHub notifications set up.", buttons=[[Button.inline("⬅️ Back to Case Wiki", b"pub_case_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_case_moderation":
+                            await event.edit("<b>📈 BLUEPRINT: ANTI-FRAUD PUBLIC CHAT SWEEPS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Target: Spam sweep loops and user restrict rules.\n• Protection: Block spammers using regular expressions.\n• Output: Deleted 10,000+ spam comments dynamically.", buttons=[[Button.inline("⬅️ Back to Case Wiki", b"pub_case_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_case_style":
+                            await event.edit("<b>📈 BLUEPRINT: STYLE DNA CLONING VERIFICATION</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Target: Mirroring owner messaging traits live.\n• Mechanics: Analyzed 2,000 chat logs dynamically.\n• Output: 98% of users believed AI twin was human.", buttons=[[Button.inline("⬅️ Back to Case Wiki", b"pub_case_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_case_load":
+                            await event.edit("<b>📈 BLUEPRINT: HIGH CONCURRENCY LOAD TESTING</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Target: Performance diagnostics at 1,000 req/min.\n• Engine: SQLite WAL mode handles locks cleanly.\n• Latency: Loop processing latency steady at 0.4ms.", buttons=[[Button.inline("⬅️ Back to Case Wiki", b"pub_case_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_case_migration":
+                            await event.edit("<b>📈 BLUEPRINT: ZERO-DOWNTIME MIGRATION LOGS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Target: Transferring database hosts securely.\n• Setup: Real-time container mirroring routines.\n• Uptime: Database migration finished with 0s downtime.", buttons=[[Button.inline("⬅️ Back to Case Wiki", b"pub_case_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+                        elif data == b"pub_case_blueprint":
+                            await event.edit("<b>📈 BLUEPRINT: COMPREHENSIVE DEPLOYMENT MAPS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Target: Corporate bot scaling maps.\n• Scope: Configuration guidelines, templates, SLAs.\n• Cost: Included in Standard and Enterprise plans.", buttons=[[Button.inline("⬅️ Back to Case Wiki", b"pub_case_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
+                            return
+
+                        # ==================== EXIST BACK ROUTER ====================
+
                         elif data == b"pub_back":
                             # Redraw the main intro panel!
                             intro_text = (
