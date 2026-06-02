@@ -137,10 +137,15 @@ def get_db_connection():
     if db_url:
         db_url = db_url.strip().strip("'").strip('"')
         import psycopg2
-        # If it looks like a URI, parse it into connection kwargs to handle special characters properly
-        if db_url.startswith("postgresql://") or db_url.startswith("postgres://"):
-            from urllib.parse import urlparse, unquote
-            result = urlparse(db_url)
+        # Parse into connection kwargs to handle special characters properly
+        from urllib.parse import urlparse, unquote
+        # If it doesn't have a protocol prefix, add one temporarily to let urlparse process it
+        temp_url = db_url
+        if "://" not in temp_url:
+            temp_url = "postgresql://" + temp_url
+            
+        try:
+            result = urlparse(temp_url)
             username = unquote(result.username) if result.username else None
             password = unquote(result.password) if result.password else None
             database = unquote(result.path[1:]) if result.path else None
@@ -154,7 +159,8 @@ def get_db_connection():
                 host=hostname,
                 port=port
             )
-        else:
+        except Exception:
+            # Fallback to direct string connection if parsing fails completely
             conn = psycopg2.connect(db_url)
         return PostgresConnectionWrapper(conn)
     else:
