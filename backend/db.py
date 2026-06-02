@@ -136,8 +136,25 @@ def load_settings_cache():
 def get_db_connection():
     if DATABASE_URL:
         import psycopg2
-        # Auto-reconnection adapter for postgres
-        conn = psycopg2.connect(DATABASE_URL)
+        # If it looks like a URI, parse it into connection kwargs to handle special characters properly
+        if DATABASE_URL.startswith("postgresql://") or DATABASE_URL.startswith("postgres://"):
+            from urllib.parse import urlparse, unquote
+            result = urlparse(DATABASE_URL)
+            username = unquote(result.username) if result.username else None
+            password = unquote(result.password) if result.password else None
+            database = unquote(result.path[1:]) if result.path else None
+            hostname = result.hostname
+            port = result.port
+            
+            conn = psycopg2.connect(
+                database=database,
+                user=username,
+                password=password,
+                host=hostname,
+                port=port
+            )
+        else:
+            conn = psycopg2.connect(DATABASE_URL)
         return PostgresConnectionWrapper(conn)
     else:
         conn = sqlite3.connect(DB_FILE, timeout=10.0)
