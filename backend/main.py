@@ -42,13 +42,15 @@ async def startup():
         while True:
             try:
                 await tg_manager.connect()
+                # CRITICAL: Always register listeners regardless of userbot authorization.
+                # The bot token client works independently — handlers MUST be registered
+                # even when the userbot session is missing (e.g. after Render deploys wipe ephemeral fs).
+                tg_manager.start_listener()
                 if await tg_manager.is_authorized():
-                    tg_manager.start_listener()
-                    db.log_event("INFO", "Telegram client authorized. Listeners active.")
-                    break
+                    db.log_event("INFO", "Telegram userbot authorized. All listeners (userbot + bot) active.")
                 else:
-                    db.log_event("WARNING", "Telegram client NOT authorized. Login required on dashboard.")
-                    break
+                    db.log_event("WARNING", "Telegram userbot NOT authorized (session missing). Bot token listeners are active. Login via dashboard to restore userbot.")
+                break
             except Exception as e:
                 import traceback
                 db.log_event("ERROR", f"Error connecting to Telegram in background: {str(e)}\n{traceback.format_exc()}. Retrying in 10s...")
