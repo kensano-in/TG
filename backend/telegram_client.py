@@ -949,9 +949,41 @@ class TelegramManager:
                                 "🔥 <b>SCARCITY WARNING:</b>\n"
                                 "Only <b>4 out of 10</b> slots remain for this onboarding batch. Setup takes up to 24 hours. Batch closes strictly within 48 hours to ensure dedicated server performance for existing clients.\n\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                "<i>Initiate secure onboarding directly via the developer.</i>"
+                                "<i>Select an option below to proceed:</i>"
                             )
-                            await event.edit(setup_text, buttons=cta_buttons, parse_mode="html")
+                            setup_buttons = [
+                                [Button.inline("🗺️ Onboarding & Deploy Roadmap", b"pub_roadmap")],
+                                [Button.url("💬 Setup Your Autopilot (@shinichirofr)", "https://t.me/shinichirofr")],
+                                [Button.inline("⬅️ Back to Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(setup_text, buttons=setup_buttons, parse_mode="html")
+                            return
+
+                        elif data == b"pub_roadmap":
+                            roadmap_text = (
+                                "🗺️ <b>ONBOARDING & DEPLOYMENT ROADMAP</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>A step-by-step technical blueprint for activating your AI Digital Twin.</blockquote>\n\n"
+                                "<b>🏁 STAGE 1: CREDENTIAL SYNC (Hour 0-2)</b>\n"
+                                "• Prepare your Telegram API ID and API Hash securely.\n"
+                                "• Scan your session token natively using our encrypted CLI tool.\n\n"
+                                "<b>🧬 STAGE 2: LINGUISTIC ANALYSIS (Hour 2-6)</b>\n"
+                                "• Our model runs a background sweep of up to 1,000 sent messages.\n"
+                                "• Builds your customized Style Profile setting casing, typos, and emoji parameters.\n\n"
+                                "<b>📚 STAGE 3: FAQ KNOWLEDGE BASE INJECTION (Hour 6-12)</b>\n"
+                                "• Populate your transaction rules, product rates, and escrow policies.\n"
+                                "• Verify logical priority flags (AI Autopilot vs Escrow triggers).\n\n"
+                                "<b>⚡ STAGE 4: SANDBOX TESTING & LAUNCH (Hour 12-24)</b>\n"
+                                "• Test the twin simulation in a private channel with mock inquiries.\n"
+                                "• Re-calibrate latency profiles and launch live.\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Onboarding complete within 24 hours.</i>"
+                            )
+                            roadmap_buttons = [
+                                [Button.inline("⬅️ Back to Setup Menu", b"pub_setup")],
+                                [Button.inline("🏠 Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(roadmap_text, buttons=roadmap_buttons, parse_mode="html")
                             return
                             
                         elif data == b"pub_dna_info":
@@ -981,27 +1013,101 @@ class TelegramManager:
                                 "• <b>AI Pipeline</b>: Distributed pool of 5+ Gemini API keys with intelligent rotation, cooldown, and error-handling.\n"
                                 "• <b>Strict Privacy</b>: 100% self-hosted. Your message logs are kept locally and never shared.\n\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                "<i>Zero telemetry leaks. Pure industrial speed.</i>"
+                                "<i>Explore our specs or read our legal policies:</i>"
                             )
-                            await event.edit(details_text, buttons=cta_buttons, parse_mode="html")
+                            details_buttons = [
+                                [Button.inline("🎛️ Hardware Hosting Architecture", b"pub_infra_hardware")],
+                                [Button.inline("🛡️ Anti-DDoS & Network Security", b"pub_infra_network")],
+                                [Button.inline("🔒 Cryptographic Privacy Policy", b"pub_privacy")],
+                                [Button.inline("⬅️ Back to Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(details_text, buttons=details_buttons, parse_mode="html")
+                            return
+
+                        elif data == b"pub_infra_hardware":
+                            hardware_text = (
+                                "🎛️ <b>HARDWARE HOSTING ARCHITECTURE</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>Industrial-grade specs hosting our digital twin instances.</blockquote>\n\n"
+                                "<b>🖥️ HOST SERVER METRICS:</b>\n"
+                                "• <b>Compute</b>: 8-Core AMD EPYC Dedicated Virtualization Nodes (3.4 GHz base).\n"
+                                "• <b>RAM</b>: 32GB ECC Server-Grade Memory for fast cache querying.\n"
+                                "• <b>Storage</b>: High-Speed Enterprise PCIe Gen4 NVMe (WAL Cache optimized).\n"
+                                "• <b>Network Up-link</b>: Redundant 1 Gbps port connectivity with 99.99% core SLA.\n\n"
+                                "<b>⚡ AI GRAPHICS PROCESSING Unit (GPU)</b>\n"
+                                "• Fast prompt embedding calculations utilize local GPU-accelerated clusters for vector analysis.\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Built to scale without slowdowns under extreme concurrency load.</i>"
+                            )
+                            hardware_buttons = [
+                                [Button.inline("⬅️ Back to Specs Menu", b"pub_details")],
+                                [Button.inline("🏠 Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(hardware_text, buttons=hardware_buttons, parse_mode="html")
+                            return
+
+                        elif data == b"pub_infra_network":
+                            network_text = (
+                                "🛡️ <b>ANTI-DDOS & NETWORK SECURITY</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>Engineered natively to handle malicious traffic spikes and keep API streams active.</blockquote>\n\n"
+                                "<b>🔐 SHIELD FEATURES:</b>\n"
+                                "• <b>Layer 7 Filtering</b>: Block HTTP flooding and socket loops instantly.\n"
+                                "• <b>Proxy Key Pools</b>: Auto-rotate outgoing proxy IPs (SOCKS5/MTProto) every 15 minutes to bypass Telegram bot rate limits.\n"
+                                "• <b>Token Protection</b>: Credentials, tokens, and SQLite files are locked behind AES-256 local filesystem encryption keys.\n"
+                                "• <b>Intrusion Prevention</b>: Scans background sessions and alerts admins on unauthorized login triggers.\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Military-grade isolation. Zero downtime.</i>"
+                            )
+                            network_buttons = [
+                                [Button.inline("⬅️ Back to Specs Menu", b"pub_details")],
+                                [Button.inline("🏠 Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(network_text, buttons=network_buttons, parse_mode="html")
+                            return
+
+                        elif data == b"pub_privacy":
+                            privacy_text = (
+                                "🔒 <b>CRYPTOGRAPHIC PRIVACY POLICY</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>Your data, your rules. Read how we protect your personal chat archives.</blockquote>\n\n"
+                                "<b>📖 PRIVACY STANDARDS:</b>\n"
+                                "• <b>Local Processing Only</b>: We do NOT host your messages on public cloud servers. All database records (WAL SQLite) reside on dedicated containers.\n"
+                                "• <b>LLM Data Policy</b>: Message context is sent to official API endpoints strictly via SSL encryption and is never used to train global AI models.\n"
+                                "• <b>Automated Erasure</b>: Commands like <code>/clear_history</code> or database sweeps wipe all stored context memory arrays instantly.\n"
+                                "• <b>Zero Analytics</b>: No trackers, cookies, or metadata metrics are logged. Telemetry is purely runtime diagnostics.\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>True encryption. absolute sovereignty over your communications.</i>"
+                            )
+                            privacy_buttons = [
+                                [Button.inline("⬅️ Back to Specs Menu", b"pub_details")],
+                                [Button.inline("🏠 Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(privacy_text, buttons=privacy_buttons, parse_mode="html")
                             return
                             
                         elif data == b"pub_features":
                             features_text = (
-                                "🛠️ <b>COET AUTOMATION COMMAND DIRECTORY (300+ SCHEMAS)</b>\n"
+                                "🛠️ <b>COET AUTOMATION COMMAND DIRECTORY (500+ SCHEMAS)</b>\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                "<blockquote>COET runs on a robust multi-threaded prompt & control execution matrix. Below is a subset of the 300+ available interactive commands and triggers across the bot core.</blockquote>\n\n"
+                                "<blockquote>COET runs on a robust multi-threaded prompt & control execution matrix. Below is a subset of the 500+ available interactive commands and triggers across the bot core.</blockquote>\n\n"
                                 "<b>📁 COMMAND SCHEMA CLASSIFICATIONS:</b>\n"
-                                "• <b>Autopilot Core (80+)</b>: Commands to control character limits, typing simulations, Roman Hinglish thresholds, and sleep cycles.\n"
-                                "• <b>Escrow & MM (100+)</b>: Triggers to lock deals, configure multi-chain deposits, calculate transaction fees, and release/refund funds.\n"
-                                "• <b>Group & Anti-Scam (70+)</b>: Multi-tier chat warning systems, impersonator detection sweeps, spam gates, and captcha restriction filters.\n"
-                                "• <b>Telemetry & System (50+)</b>: Database WAL settings, rotating key parameters, latency benchmarks, and error cooldown configs.\n\n"
+                                "• <b>Autopilot Core (80+)</b>: Personality triggers, Hinglish ratios, and typing delays.\n"
+                                "• <b>Escrow & MM (100+)</b>: Deal status, networks, settlement logs, and dispute holds.\n"
+                                "• <b>Group & Anti-Scam (70+)</b>: Member restrictions, CAPTCHAs, and scam sweeps.\n"
+                                "• <b>Telemetry & Sys (50+)</b>: Gemini key pools, WebSocket states, and WAL databases.\n"
+                                "• <b>Payment & Accounting (50+)</b>: UPI payments, balances, credits, and ledger creation.\n"
+                                "• <b>Task & Scheduler (50+)</b>: Alert rules, timers, deadlines, and cron notifications.\n"
+                                "• <b>Prompt Tuning (50+)</b>: Temperature parameters, persona rules, and focus logs.\n"
+                                "• <b>Webhook & API (50+)</b>: Client token generator, stream logs, and webhook routing.\n\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                                 "<i>Select a command category below to view syntax schemas:</i>"
                             )
                             features_buttons = [
-                                [Button.inline("🤖 Autopilot Core (80+)", b"pub_cmd_core"), Button.inline("🛡️ Escrow & MM (100+)", b"pub_cmd_escrow")],
-                                [Button.inline("👥 Group & Anti-Scam (70+)", b"pub_cmd_group"), Button.inline("📊 Telemetry & Sys (50+)", b"pub_cmd_sys")],
+                                [Button.inline("🤖 Autopilot Core", b"pub_cmd_core"), Button.inline("🛡️ Escrow & MM", b"pub_cmd_escrow")],
+                                [Button.inline("👥 Group Moderation", b"pub_cmd_group"), Button.inline("📊 Telemetry & Sys", b"pub_cmd_sys")],
+                                [Button.inline("💳 Pay & Accounting", b"pub_cmd_payment"), Button.inline("⏰ Task & Scheduler", b"pub_cmd_tasks")],
+                                [Button.inline("🧬 Prompt Tuning", b"pub_cmd_prompt"), Button.inline("🔌 Webhook & API", b"pub_cmd_api")],
                                 [Button.inline("⬅️ Back to Main Menu", b"pub_back")]
                             ]
                             await event.edit(features_text, buttons=features_buttons, parse_mode="html")
@@ -1124,6 +1230,111 @@ class TelegramManager:
                             await event.edit(sys_text, buttons=cmd_buttons, parse_mode="html")
                             return
 
+                        elif data == b"pub_cmd_payment":
+                            payment_text = (
+                                "💳 <b>PAYMENT & ACCOUNTING COMMANDS (50+ TRIGGERS)</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<b>🇮🇳 FIAT SETTLEMENT (UPI) INTEGRATION</b>\n"
+                                "• <code>/upi [amount] [vpa_address]</code> - Generate dynamic UPI payout links & QR strings for instant Indian currency settlement.\n"
+                                "• <code>/upi_verify [vpa] [utr_ref]</code> - Verify incoming instant bank settlement logs.\n"
+                                "• <code>/upi_rates</code> - Query current global USD to INR conversion multipliers.\n\n"
+                                "<b>⛓️ CRYPTO & MULTI-CHAIN PAYMENT TRIGGERS</b>\n"
+                                "• <code>/paycheck [address] [tx_hash] [chain]</code> - Match deposit on TRON, Ethereum, or BSC chains.\n"
+                                "• <code>/invoice create [user_id] [amount] [memo]</code> - Issue cryptographically signed bills.\n"
+                                "• <code>/invoice cancel [invoice_id]</code> - Deprecate active billing records.\n"
+                                "• <code>/invoice list [user_id]</code> - Query all open checkouts linked to a visitor profile.\n\n"
+                                "<b>📊 ACCOUNTING & GENERAL LEDGER</b>\n"
+                                "• <code>/ledger [user_id] [credits|history]</code> - View transaction credits history.\n"
+                                "• <code>/credits add [user_id] [amount] [reason]</code> - Push promotional balance increments.\n"
+                                "• <code>/credits deduct [user_id] [amount]</code> - Deduct license usage costs.\n"
+                                "• <code>/accounting export [monthly|weekly]</code> - Dispatch general balance sheets in JSON.\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Zero billing leakage. Automated payment flows natively in chat.</i>"
+                            )
+                            cmd_buttons = [
+                                [Button.inline("⬅️ Back to Command Directory", b"pub_features")],
+                                [Button.inline("🏠 Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(payment_text, buttons=cmd_buttons, parse_mode="html")
+                            return
+
+                        elif data == b"pub_cmd_tasks":
+                            tasks_text = (
+                                "⏰ <b>TASK & SCHEDULER COMMANDS (50+ TRIGGERS)</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<b>📅 SYSTEM REMINDERS & TIMER TRIGGERS</b>\n"
+                                "• <code>/reminder [time] [task_description]</code> - Queue an encrypted background reminder (e.g. <code>/reminder 3h release Sol escrow</code>).\n"
+                                "• <code>/reminder list</code> - Check active cron alarms and timer tasks.\n"
+                                "• <code>/reminder cancel [alarm_id]</code> - Unschedule pending alarms.\n\n"
+                                "<b>🚀 TASK FLOW & PROGRESS LOGGING</b>\n"
+                                "• <code>/task add [description] [priority]</code> - Append a development ticket to the system board.\n"
+                                "• <code>/task status [task_id]</code> - Check ongoing status (Pending, Active, Closed).\n"
+                                "• <code>/task assign [task_id] [username]</code> - Link task ownership flags.\n"
+                                "• <code>/deadline [task_id] [timestamp]</code> - Enforce strict delivery limits.\n\n"
+                                "<b>🔔 ALERT TRiggers & CRON</b>\n"
+                                "• <code>/cron add '[cron_expr]' [action]</code> - Schedule recursive jobs.\n"
+                                "• <code>/cron list</code> - Display active cron schemas.\n"
+                                "• <code>/alert threshold [cpu|mem] [value]</code> - Trigger warnings when resource limits cross.\n"
+                                "• <code>/notify [user_id|channel] [text]</code> - Broadcast instant system bulletins.\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Reliable job queue. Keep operations on schedule.</i>"
+                            )
+                            cmd_buttons = [
+                                [Button.inline("⬅️ Back to Command Directory", b"pub_features")],
+                                [Button.inline("🏠 Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(tasks_text, buttons=cmd_buttons, parse_mode="html")
+                            return
+
+                        elif data == b"pub_cmd_prompt":
+                            prompt_text = (
+                                "🧬 <b>PROMPT & DIRECTIVES TUNING COMMANDS (50+ TRIGGERS)</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<b>🧠 PERSONA RULE TUNING</b>\n"
+                                "• <code>/prompt system [view|edit]</code> - Load the core AI digital twin prompt directives.\n"
+                                "• <code>/prompt inject [position] [instruction]</code> - Push hotfixes into system memory.\n"
+                                "• <code>/prompt backup [label]</code> - Save current instruction sets into database snapshot.\n"
+                                "• <code>/prompt rollback [label]</code> - Revert active prompt arrays instantly.\n\n"
+                                "<b>⚙️ TEXT GENERATION PARAMS</b>\n"
+                                "• <code>/prompt temp [0.0-1.0]</code> - Tune AI temperature value (creativity thresholds).\n"
+                                "• <code>/prompt context [limit_count]</code> - Set maximum historical message count fed to model.\n"
+                                "• <code>/prompt filter [on|off]</code> - Toggle content formatting and filter checks.\n"
+                                "• <code>/weight [casing|slang|faq] [value]</code> - Adjust trait dominance sliders.\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Calibrate your AI Persona rules in real-time.</i>"
+                            )
+                            cmd_buttons = [
+                                [Button.inline("⬅️ Back to Command Directory", b"pub_features")],
+                                [Button.inline("🏠 Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(prompt_text, buttons=cmd_buttons, parse_mode="html")
+                            return
+
+                        elif data == b"pub_cmd_api":
+                            api_text = (
+                                "🔌 <b>WEBHOOK & API INTEGRATION COMMANDS (50+ TRIGGERS)</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<b>🕸️ WEBHOOK SETUPS</b>\n"
+                                "• <code>/webhook set [endpoint_url] [event_mask]</code> - Setup outbound HTTP payload listeners.\n"
+                                "• <code>/webhook list</code> - List all active URL webhook nodes.\n"
+                                "• <code>/webhook test [webhook_id]</code> - Dispatch simulated transaction JSON payload.\n"
+                                "• <code>/webhook delete [webhook_id]</code> - Remove server route trigger.\n\n"
+                                "<b>🔌 WEBSOCKET & KEY ACCESS</b>\n"
+                                "• <code>/api genkey [label]</code> - Generate cryptographically secure API credentials token.\n"
+                                "• <code>/api list</code> - View authorized API key logs.\n"
+                                "• <code>/api revoke [token_id]</code> - Expire credentials immediately.\n"
+                                "• <code>/ws restart</code> - Flush and reboot WebSocket pipeline sockets.\n"
+                                "• <code>/ws status</code> - Check live connected client counts.\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Industrial API connectivity. Sync your data pipeline with third-party software.</i>"
+                            )
+                            cmd_buttons = [
+                                [Button.inline("⬅️ Back to Command Directory", b"pub_features")],
+                                [Button.inline("🏠 Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(api_text, buttons=cmd_buttons, parse_mode="html")
+                            return
+
                         elif data == b"pub_security":
                             security_text = (
                                 "🛡️ <b>ESCROW & ANTI-FRAUD SHIELD</b>\n"
@@ -1134,11 +1345,58 @@ class TelegramManager:
                                 "• <b>Anti-Impersonator Block</b>: Scans display names and mutes copycats claiming to be you or an official admin.\n"
                                 "• <b>Blacklist Keywords</b>: Auto-mute and block spammers sending blacklisted phrases.\n\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                "<i>Bulletproof protection for high-value transactional channels.</i>"
+                                "<i>Explore specialized escrow specifications:</i>"
                             )
-                            await event.edit(security_text, buttons=cta_buttons, parse_mode="html")
+                            security_buttons = [
+                                [Button.inline("⚖️ Dispute Arbitration Protocol", b"pub_escrow_dispute")],
+                                [Button.inline("⛓️ Supported Chains & Assets", b"pub_escrow_assets")],
+                                [Button.inline("⬅️ Back to Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(security_text, buttons=security_buttons, parse_mode="html")
                             return
-                            
+
+                        elif data == b"pub_escrow_dispute":
+                            dispute_text = (
+                                "⚖️ <b>DISPUTE ARBITRATION PROTOCOL</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>Logical resolution structures built into automated transactions.</blockquote>\n\n"
+                                "<b>⚖️ DISPUTE RESOLUTION PARAMETERS:</b>\n"
+                                "• <b>Hold Escrow</b>: Auto-lock funds in system wallets on <code>/escrow hold</code> command.\n"
+                                "• <b>Evidence Lock</b>: Dispute window opens for 48 hours for buyer/seller submissions (logs, screen grabs, hashes).\n"
+                                "• <b>Mediator Allocation</b>: Re-route thread priorities to authorized third-party admins.\n"
+                                "• <b>Resolution Output</b>: Refund release triggers <code>/escrow refund</code> (to buyer address) or payout dispatch <code>/escrow release</code> (to seller address).\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Strict mathematical escrow logic. Zero human vulnerability.</i>"
+                            )
+                            dispute_buttons = [
+                                [Button.inline("⬅️ Back to Escrow Menu", b"pub_security")],
+                                [Button.inline("🏠 Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(dispute_text, buttons=dispute_buttons, parse_mode="html")
+                            return
+
+                        elif data == b"pub_escrow_assets":
+                            assets_text = (
+                                "⛓️ <b>SUPPORTED CHAINS & ASSETS</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>We monitor multiple smart contract protocols to verify incoming deposits.</blockquote>\n\n"
+                                "<b>⛓️ INTEGRATED NETWORKS:</b>\n"
+                                "• <b>USDT (TRC-20)</b>: Lowest network fee tier, processed within 1-2 block confirmations.\n"
+                                "• <b>USDT (ERC-20)</b>: High security layer, processed within 6 block confirmations.\n"
+                                "• <b>USDT / USDC (BEP-20)</b>: Automated low-cost token transfers on Binance Smart Chain.\n"
+                                "• <b>Native Tokens</b>: BTC, ETH, and SOL transfer confirmations are tracked via global nodes.\n\n"
+                                "<b>⚡ SPEEDS:</b>\n"
+                                "• Blockchain daemon processes verify balances every 12 seconds.\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Secure wallet addresses bind to transaction IDs dynamically.</i>"
+                            )
+                            assets_buttons = [
+                                [Button.inline("⬅️ Back to Escrow Menu", b"pub_security")],
+                                [Button.inline("🏠 Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(assets_text, buttons=assets_buttons, parse_mode="html")
+                            return
+
                         elif data == b"pub_vouches":
                             vouches_text = (
                                 "👥 <b>CLIENT TESTIMONIALS & VOUCHES</b>\n"
@@ -1149,11 +1407,56 @@ class TelegramManager:
                                 "• <i>'The Hinglish responses are so natural, my buyers think they're chatting directly with me.'</i> — <b>WP Alt Seller</b>\n"
                                 "• <i>'Instantly muted a copycat account trying to scam my buyers in group comments. Phenomenal shield.'</i> — <b>Channel Admin</b>\n\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                "<i>Join premium operators running their twin assistants.</i>"
+                                "<i>Read detailed client category stories:</i>"
                             )
-                            await event.edit(vouches_text, buttons=cta_buttons, parse_mode="html")
+                            vouches_buttons = [
+                                [Button.inline("📈 OTC Broker Success Stories", b"pub_vouches_brokers")],
+                                [Button.inline("🛡️ Channel Admin Case Studies", b"pub_vouches_admins")],
+                                [Button.inline("⬅️ Back to Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(vouches_text, buttons=vouches_buttons, parse_mode="html")
                             return
-                            
+
+                        elif data == b"pub_vouches_brokers":
+                            brokers_text = (
+                                "📈 <b>OTC BROKER SUCCESS STORIES</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>How volume brokers scale operations with Coet.</blockquote>\n\n"
+                                "<b>💸 CASE STUDY: CRYPTO OTC DESK</b>\n"
+                                "• <b>Daily Inquiries</b>: 300+ incoming buyer requests.\n"
+                                "• <b>Automation Level</b>: Replaced manually copying bank VPA details. Coet outputs UPI codes on demand via <code>/upi</code>.\n"
+                                "• <b>Saves</b>: 22 hours per week of repetitive checkout instructions.\n"
+                                "• <b>ROI Result</b>: Zero lost sales due to chat response lag.\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>'Coet keeps transaction volumes flowing without friction.'</i>"
+                            )
+                            brokers_buttons = [
+                                [Button.inline("⬅️ Back to Vouches Menu", b"pub_vouches")],
+                                [Button.inline("🏠 Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(brokers_text, buttons=brokers_buttons, parse_mode="html")
+                            return
+
+                        elif data == b"pub_vouches_admins":
+                            admins_text = (
+                                "🛡️ <b>CHANNEL ADMIN CASE STUDIES</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>Community management metrics under high scam load.</blockquote>\n\n"
+                                "<b>🚨 CASE STUDY: TELEGRAM PUBLIC SALES GROUP</b>\n"
+                                "• <b>Group Size</b>: 18,000+ members.\n"
+                                "• <b>Spam Load</b>: Up to 150 spam bot join attempts per day.\n"
+                                "• <b>Protection Used</b>: Coet Anti-Impersonator shield coupled with captchas.\n"
+                                "• <b>Result</b>: Auto-muted 48 replica profiles posing as project admins within 0.1 seconds of creation.\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>'Shield filters kept our community safe from phishing vectors.'</i>"
+                            )
+                            admins_buttons = [
+                                [Button.inline("⬅️ Back to Vouches Menu", b"pub_vouches")],
+                                [Button.inline("🏠 Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(admins_text, buttons=admins_buttons, parse_mode="html")
+                            return
+
                         elif data == b"pub_telemetries":
                             telemetries_text = (
                                 "📊 <b>LIVE SYSTEM TELEMETRY</b>\n"
@@ -1166,11 +1469,57 @@ class TelegramManager:
                                 "• <b>Uptime Uptime</b>: <code>99.99% Operational</code>\n"
                                 "• <b>Voice Note Transcription</b>: <code>Active (Whisper Core)</code>\n\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                "<i>Performance metrics updated in real-time.</i>"
+                                "<i>Inspect advanced database and key matrix metrics:</i>"
                             )
-                            await event.edit(telemetries_text, buttons=cta_buttons, parse_mode="html")
+                            telemetries_buttons = [
+                                [Button.inline("🔑 API Key Rotation Matrix", b"pub_telemetry_keys")],
+                                [Button.inline("📁 Database Engine Diagnostics", b"pub_telemetry_db")],
+                                [Button.inline("⬅️ Back to Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(telemetries_text, buttons=telemetries_buttons, parse_mode="html")
                             return
-                            
+
+                        elif data == b"pub_telemetry_keys":
+                            keys_text = (
+                                "🔑 <b>API KEY ROTATION MATRIX</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>Our key pool rotation keeps your digital twin online and prevents API restriction blocks.</blockquote>\n\n"
+                                "<b>🔑 KEY MATRIX RULES:</b>\n"
+                                "• <b>Key Pool Size</b>: 5 active slots rotating dynamically.\n"
+                                "• <b>Rate Limit Buffer</b>: Auto-cooldown active triggers. When a key experiences a HTTP 429 block, it rests for 60 seconds.\n"
+                                "• <b>Key Rotator</b>: Switches keys sequentially after every 3 queries.\n"
+                                "• <b>Health Check</b>: Background thread tests key ping speeds every 3 minutes.\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>100% API availability. Re-routing loop ensures zero lost prompts.</i>"
+                            )
+                            keys_buttons = [
+                                [Button.inline("⬅️ Back to Telemetry Menu", b"pub_telemetries")],
+                                [Button.inline("🏠 Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(keys_text, buttons=keys_buttons, parse_mode="html")
+                            return
+
+                        elif data == b"pub_telemetry_db":
+                            db_text = (
+                                "📁 <b>DATABASE ENGINE DIAGNOSTICS</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>WAL mode database configuration yields fast concurrency rates under high loads.</blockquote>\n\n"
+                                "<b>💾 DIAGNOSTIC METRICS:</b>\n"
+                                "• <b>DB Type</b>: SQLite SQLite3 engine.\n"
+                                "• <b>Journal Mode</b>: WAL (Write-Ahead Logging) enabling concurrent readers and writers.\n"
+                                "• <b>Page Size</b>: 4096 Bytes optimized for low NVMe latency.\n"
+                                "• <b>Cache Size</b>: 2000 active pages cached in ECC memory.\n"
+                                "• <b>Auto-Vacuum</b>: Configured incrementally to clean storage leaks dynamically.\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Secure transactions. Read/write lockouts eliminated under concurrent requests.</i>"
+                            )
+                            db_buttons = [
+                                [Button.inline("⬅️ Back to Telemetry Menu", b"pub_telemetries")],
+                                [Button.inline("🏠 Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(db_text, buttons=db_buttons, parse_mode="html")
+                            return
+
                         elif data == b"pub_pricing":
                             pricing_text = (
                                 "📖 <b>PRICING & FREQUENTLY ASKED QUESTIONS</b>\n"
@@ -1181,13 +1530,77 @@ class TelegramManager:
                                 "• <b>Custom RAG Tier</b>: Custom pricing based on business FAQ size and custom database integrations.\n\n"
                                 "<b>⚡ PAID TRIAL ONBOARDING:</b>\n"
                                 "• <b>1-Day Subscription Session</b>: Get a full 1-day trial session for just <b>$2</b>. We don't offer free trials because high-quality digital twin processing requires dedicated GPU resources. Filter out low-intent window shoppers and test the limits immediately.\n\n"
-                                "<b>❓ FAQs:</b>\n"
-                                "• <i>Will my account get restricted?</i> No. Coet mimics natural typing behaviors, sets active hours, and throttles responses safely.\n"
-                                "• <i>Can I tweak the rules?</i> Yes, you get a full glassmorphic web dashboard to modify FAQs, statuses, and style traits.\n\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                "<i>Deploy your trial assistant today for only $2.</i>"
+                                "<i>Select a plan model to view detailed licensing specs:</i>"
                             )
-                            await event.edit(pricing_text, buttons=cta_buttons, parse_mode="html")
+                            pricing_buttons = [
+                                [Button.inline("💼 Enterprise Dedicated Instance", b"pub_price_enterprise")],
+                                [Button.inline("🤝 Franchise & Reseller License", b"pub_price_reseller")],
+                                [Button.inline("📜 SLA & Terms & Conditions", b"pub_terms")],
+                                [Button.inline("⬅️ Back to Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(pricing_text, buttons=pricing_buttons, parse_mode="html")
+                            return
+
+                        elif data == b"pub_price_enterprise":
+                            enterprise_text = (
+                                "💼 <b>ENTERPRISE DEDICATED INSTANCE</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>For high-volume OTC desks and corporate brokers requiring isolated clusters.</blockquote>\n\n"
+                                "<b>⭐ PLAN FEATURES:</b>\n"
+                                "• <b>Computing Power</b>: Isolated VM with 100% hardware allocation.\n"
+                                "• <b>Rotator Keys</b>: Supply up to 20 custom API keys for zero-cooldown prompts.\n"
+                                "• <b>DNS Mapping</b>: Hook custom domain names to active dashboard portals.\n"
+                                "• <b>Support Tier</b>: Dedicated SLA engineering channels with 15-minute response times.\n"
+                                "• <b>Database Clustering</b>: Setup custom replications across redundant cloud zones.\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Custom quoted based on concurrency metrics. Contact developer.</i>"
+                            )
+                            enterprise_buttons = [
+                                [Button.inline("⬅️ Back to Pricing Menu", b"pub_pricing")],
+                                [Button.inline("🏠 Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(enterprise_text, buttons=enterprise_buttons, parse_mode="html")
+                            return
+
+                        elif data == b"pub_price_reseller":
+                            reseller_text = (
+                                "🤝 <b>FRANCHISE & RESELLER LICENSE</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>Launch your own whitelabel AI digital twin automation service.</blockquote>\n\n"
+                                "<b>🔥 RESELLER DEALS:</b>\n"
+                                "• <b>Whitelabel Bot Builder</b>: Build bot instances with customized brand assets.\n"
+                                "• <b>Partner Panel</b>: Admin console to track credits, balances, and instances.\n"
+                                "• <b>Volume Discounts</b>: License rates start at $25/instance/month for partners with 10+ setups.\n"
+                                "• <b>Support Pipeline</b>: Direct documentation, templates, and setup blueprints.\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Partner with COET to build your whitelabel SaaS business.</i>"
+                            )
+                            reseller_buttons = [
+                                [Button.inline("⬅️ Back to Pricing Menu", b"pub_pricing")],
+                                [Button.inline("🏠 Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(reseller_text, buttons=reseller_buttons, parse_mode="html")
+                            return
+
+                        elif data == b"pub_terms":
+                            terms_text = (
+                                "📜 <b>SYSTEM SERVICE SLA & TERMS & CONDITIONS</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>Terms governing licensing, SLA guarantees, and payment refunds.</blockquote>\n\n"
+                                "<b>📜 CORE TERMS:</b>\n"
+                                "• <b>Uptime Guarantee</b>: We guarantee 99.9% uptime for core client instances. Credits are applied in case of service downtime.\n"
+                                "• <b>Trial Refund Policy</b>: The $2 1-day subscription trial is non-refundable and covers direct compute resources consumed during onboarding.\n"
+                                "• <b>Escrow Responsibilities</b>: Escrow outputs are tool recommendations. Users must verify wallet addresses and confirmations before releasing funds.\n"
+                                "• <b>API Keys</b>: Users must not share generated API keys to prevent session tokens revocation.\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Standard commercial terms apply. By proceeding, you agree to these SLA metrics.</i>"
+                            )
+                            terms_buttons = [
+                                [Button.inline("⬅️ Back to Pricing Menu", b"pub_pricing")],
+                                [Button.inline("🏠 Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(terms_text, buttons=terms_buttons, parse_mode="html")
                             return
                             
                         elif data == b"pub_back":
