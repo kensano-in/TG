@@ -180,6 +180,21 @@ def get_db_connection():
                     hostname = host_port
                     port = "5432"
                 
+                # Auto-bridge IPv6 network unreachable on Render by routing to IPv4 Supavisor pooler
+                if hostname == "db.yzeqznydbrdkzsryjctq.supabase.co":
+                    hostname = "aws-1-ap-northeast-1.pooler.supabase.com"
+                    port = "6543"
+                    if username == "postgres":
+                        username = "postgres.yzeqznydbrdkzsryjctq"
+                elif hostname and hostname.endswith(".supabase.co") and not hostname.startswith("db.yzeqznydbrdkzsryjctq.supabase.co"):
+                    parts_host = hostname.split(".")
+                    if len(parts_host) >= 2:
+                        project_ref = parts_host[1]
+                        hostname = "aws-0-ap-south-1.pooler.supabase.com"
+                        port = "6543"
+                        if username == "postgres":
+                            username = f"postgres.{project_ref}"
+                
                 parsed_params = {
                     "database": unquote(database),
                     "user": unquote(username),
@@ -204,12 +219,31 @@ def get_db_connection():
                     for k, v in parse_qsl(query_str):
                         conn_kwargs[k] = v
                         
+                hostname = result.hostname
+                port = result.port
+                username = result.username
+                
+                # Auto-bridge IPv6 network unreachable on Render by routing to IPv4 Supavisor pooler
+                if hostname == "db.yzeqznydbrdkzsryjctq.supabase.co":
+                    hostname = "aws-1-ap-northeast-1.pooler.supabase.com"
+                    port = 6543
+                    if username == "postgres":
+                        username = "postgres.yzeqznydbrdkzsryjctq"
+                elif hostname and hostname.endswith(".supabase.co") and not hostname.startswith("db.yzeqznydbrdkzsryjctq.supabase.co"):
+                    parts_host = hostname.split(".")
+                    if len(parts_host) >= 2:
+                        project_ref = parts_host[1]
+                        hostname = "aws-0-ap-south-1.pooler.supabase.com"
+                        port = 6543
+                        if username == "postgres":
+                            username = f"postgres.{project_ref}"
+                            
                 parsed_params = {
                     "database": database,
-                    "user": unquote(result.username) if result.username else None,
+                    "user": unquote(username) if username else None,
                     "password": unquote(result.password) if result.password else None,
-                    "host": result.hostname,
-                    "port": result.port,
+                    "host": hostname,
+                    "port": port,
                     **conn_kwargs
                 }
                 parsed_successfully = True
