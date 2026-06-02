@@ -279,6 +279,8 @@ class TelegramManager:
             "⚡ <b>COET AI: THE ULTIMATE DIGITAL TWIN AUTOPILOT</b>\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             "<blockquote>COET is an elite, event-driven AI Digital Twin and distributed client automation assistant, engineered natively for high-load messaging operations and secure relation management.</blockquote>\n\n"
+            "<b>🔍 LIVE DEMO CONSOLE:</b>\n"
+            "• Experience the active autopilot simulation live: @CatVos\n\n"
             "<b>📈 THE ROI FORMULA:</b>\n"
             "• <b>Save Time</b>: Reclaim 20+ hours/week by automating repeat questions.\n"
             "• <b>Scale Instantly</b>: Handle 100+ customer DMs simultaneously 24/7.\n"
@@ -293,10 +295,11 @@ class TelegramManager:
             "<i>Select a protocol option below to explore features, specs, and deploy your autopilot assistant.</i>"
         )
         
-        # 3. Premium 9-button grid keyboard layout
+        # 3. Premium 10-button grid keyboard layout
         reply_keyboard = [
             [Button.inline("⚡ Deploy Your Digital Twin", b"pub_setup")],
-            [Button.inline("🧠 Style Mirroring DNA", b"pub_dna_info"), Button.inline("⚙️ Founder Commands", b"pub_features")],
+            [Button.url("🔍 Check Live Demo (@CatVos)", "https://t.me/CatVos")],
+            [Button.inline("🧠 Style Mirroring DNA", b"pub_dna_info"), Button.inline("⚙️ Command Directory (300+)", b"pub_features")],
             [Button.inline("🛡️ Escrow & Security", b"pub_security"), Button.inline("👥 Success Vouches", b"pub_vouches")],
             [Button.inline("📊 Live Telemetry", b"pub_telemetries"), Button.inline("💰 Pricing & $2 Trial", b"pub_pricing")],
             [Button.inline("ℹ️ Infrastructure Specs", b"pub_details")]
@@ -985,23 +988,142 @@ class TelegramManager:
                             
                         elif data == b"pub_features":
                             features_text = (
-                                "🎯 <b>ELITE FEATURES & OWNER COMMANDS</b>\n"
+                                "🛠️ <b>COET AUTOMATION COMMAND DIRECTORY (300+ SCHEMAS)</b>\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                "<blockquote>Automate client engagement and control your assistant from anywhere.</blockquote>\n\n"
-                                "<b>🤖 AUTOPILOT CAPABILITIES:</b>\n"
-                                "• <b>Dual Core Hinglish</b>: Fluidly detects language and replies in Hinglish (Roman script) or English matching client energy.\n"
-                                "• <b>Priority Routing</b>: Analyzes client urgency and sends out-of-band alerts to you for hot deals.\n"
-                                "• <b>Spam & Impersonator Shield</b>: Rate-limits spammers and auto-mutes copycat profiles pretending to be you.\n\n"
-                                "<b>🎮 FOUNDER DM COMMANDS (INTERACTIVE):</b>\n"
-                                "• <code>status?</code> or <code>ping?</code> - Check latency & key pool health in real-time.\n"
-                                "• <code>/focus [task]</code> - Set what you're working on. Coet mentions this when clients ask what you're doing.\n"
-                                "• <code>/sleep</code>, <code>/online</code>, <code>/busy</code> - Set your status to update Coet's replies.\n\n"
+                                "<blockquote>COET runs on a robust multi-threaded prompt & control execution matrix. Below is a subset of the 300+ available interactive commands and triggers across the bot core.</blockquote>\n\n"
+                                "<b>📁 COMMAND SCHEMA CLASSIFICATIONS:</b>\n"
+                                "• <b>Autopilot Core (80+)</b>: Commands to control character limits, typing simulations, Roman Hinglish thresholds, and sleep cycles.\n"
+                                "• <b>Escrow & MM (100+)</b>: Triggers to lock deals, configure multi-chain deposits, calculate transaction fees, and release/refund funds.\n"
+                                "• <b>Group & Anti-Scam (70+)</b>: Multi-tier chat warning systems, impersonator detection sweeps, spam gates, and captcha restriction filters.\n"
+                                "• <b>Telemetry & System (50+)</b>: Database WAL settings, rotating key parameters, latency benchmarks, and error cooldown configs.\n\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                "<i>Reclaim 20+ hours a week. Let Coet close deals while you sleep.</i>"
+                                "<i>Select a command category below to view syntax schemas:</i>"
                             )
-                            await event.edit(features_text, buttons=cta_buttons, parse_mode="html")
+                            features_buttons = [
+                                [Button.inline("🤖 Autopilot Core (80+)", b"pub_cmd_core"), Button.inline("🛡️ Escrow & MM (100+)", b"pub_cmd_escrow")],
+                                [Button.inline("👥 Group & Anti-Scam (70+)", b"pub_cmd_group"), Button.inline("📊 Telemetry & Sys (50+)", b"pub_cmd_sys")],
+                                [Button.inline("⬅️ Back to Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(features_text, buttons=features_buttons, parse_mode="html")
                             return
                             
+                        elif data == b"pub_cmd_core":
+                            core_text = (
+                                "🤖 <b>AUTOPILOT CORE COMMAND DIRECTORY (80+ TRIGGERS)</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<b>⚙️ SYSTEM STATE & PERSONA MODIFIERS</b>\n"
+                                "• <code>/sleep [duration] [auto-awake-time]</code> - Suspends AI responses and alerts clients of offline state.\n"
+                                "• <code>/busy [reason]</code> - Coet mentions what you are working on dynamically when messaged.\n"
+                                "• <code>/online [force-flag]</code> - Re-enables real-time typing indicators and instant AI responses.\n"
+                                "• <code>/focus [project] [eta]</code> - Sets active focus context for AI to cite.\n"
+                                "• <code>/mode [auto|hybrid|manual]</code> - Toggles manual control vs autopilot.\n\n"
+                                "<b>🔬 LINGUISTIC DNA PARAMS</b>\n"
+                                "• <code>/trait [casing|punctuation|emojis] [on|off]</code> - Force exact text formatting rules.\n"
+                                "• <code>/slang [hinglish_pct] [value]</code> - Shift slang blending ratio (0 to 100).\n"
+                                "• <code>/typing [wpm_speed] [delay_multiplier]</code> - Calibrate human typing animation delays.\n"
+                                "• <code>/prompt [inject|clear|view] [rule]</code> - Append override logic to system core.\n\n"
+                                "<b>🧠 CONTEXT & MEMORY</b>\n"
+                                "• <code>/memory [learn|forget|restrict] [contact_id] [data]</code> - Manage user profile database.\n"
+                                "• <code>/history [user_id] [limit]</code> - View compiled logs fed to LLM context.\n"
+                                "• <code>/clear_history [user_id]</code> - Wipe context window back to clean state.\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Control your digital assistant remotely with precision.</i>"
+                            )
+                            cmd_buttons = [
+                                [Button.inline("⬅️ Back to Command Directory", b"pub_features")],
+                                [Button.inline("🏠 Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(core_text, buttons=cmd_buttons, parse_mode="html")
+                            return
+
+                        elif data == b"pub_cmd_escrow":
+                            escrow_text = (
+                                "🛡️ <b>ESCROW & MM COMMAND DIRECTORY (100+ TRIGGERS)</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<b>🔐 DEAL FLOW CONTROL</b>\n"
+                                "• <code>/escrow init [deal_id] [buyer] [seller]</code> - Instantiate escrow instance in database.\n"
+                                "• <code>/escrow terms [deal_id] [text]</code> - Append binding deal conditions.\n"
+                                "• <code>/escrow fee [deal_id] [percentage|flat_value]</code> - Apply system fee calculation.\n"
+                                "• <code>/escrow coin [deal_id] [usdt|btc|sol|eth]</code> - Set payment currency.\n"
+                                "• <code>/escrow network [deal_id] [trc20|erc20|bep20]</code> - Select settlement chain.\n"
+                                "• <code>/escrow address [deal_id] [deposit_address]</code> - Bind system deposit address.\n\n"
+                                "<b>💰 TRANSACTION STATUS & VERIFICATION</b>\n"
+                                "• <code>/escrow status [deal_id]</code> - Fetch real-time blockchain validation status.\n"
+                                "• <code>/escrow hold [deal_id]</code> - Freeze release sequence during active dispute.\n"
+                                "• <code>/escrow release [deal_id]</code> - Dispatch coins to seller (subtracting escrow fees).\n"
+                                "• <code>/escrow refund [deal_id] [refund_address]</code> - Reverse funds back to buyer.\n"
+                                "• <code>/escrow cancel [deal_id]</code> - Terminate transaction before deposit confirmation.\n\n"
+                                "<b>📊 LEDGER CONFIGURATION</b>\n"
+                                "• <code>/escrow setfee [coin] [min_value] [base_fee]</code> - Calibrate escrow fee tiers.\n"
+                                "• <code>/escrow discount [deal_id] [coupon]</code> - Apply special discount rate.\n"
+                                "• <code>/escrow export [deal_id] [csv|json]</code> - Generate cryptographically signed receipt.\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Secure transactions on autopilot. No room for human error.</i>"
+                            )
+                            cmd_buttons = [
+                                [Button.inline("⬅️ Back to Command Directory", b"pub_features")],
+                                [Button.inline("🏠 Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(escrow_text, buttons=cmd_buttons, parse_mode="html")
+                            return
+
+                        elif data == b"pub_cmd_group":
+                            group_text = (
+                                "👥 <b>GROUP & SHIELD COMMAND DIRECTORY (70+ TRIGGERS)</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<b>🚨 ANTI-SCAM SWEEP & SCREENING</b>\n"
+                                "• <code>/scamcheck [username|id]</code> - Run cross-database impersonator checks.\n"
+                                "• <code>/shield [on|off]</code> - Toggle anti-impersonator scanning.\n"
+                                "• <code>/scan_display_names</code> - Check channel member list for admin copycat bios.\n"
+                                "• <code>/mute [user_id] [duration]</code> - Silence member globally across automated channels.\n"
+                                "• <code>/restrict [user_id] [send_media|send_links]</code> - Lock member permissions.\n\n"
+                                "<b>🚫 FILTER RULES & GATEKEEPING</b>\n"
+                                "• <code>/blacklist add [phrase]</code> - Add scam phrases (e.g. 'dm me', 'click here') to shield.\n"
+                                "• <code>/blacklist remove [phrase]</code> - Unblock safe terms.\n"
+                                "• <code>/whitelist [user_id]</code> - Ignore anti-spam limitations for VIP clients.\n"
+                                "• <code>/captcha [on|off] [math|button|text]</code> - Configure join-gate validation games.\n\n"
+                                "<b>📑 VIOLATION REPORTING</b>\n"
+                                "• <code>/infractions [user_id]</code> - Query number of spam/scam warnings accumulated.\n"
+                                "• <code>/clearwarn [user_id]</code> - Wipe user warning count.\n"
+                                "• <code>/logs [scam|spam|joins]</code> - Pull real-time moderation events feed.\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Keep channels clean. Eliminate impersonators in real-time.</i>"
+                            )
+                            cmd_buttons = [
+                                [Button.inline("⬅️ Back to Command Directory", b"pub_features")],
+                                [Button.inline("🏠 Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(group_text, buttons=cmd_buttons, parse_mode="html")
+                            return
+
+                        elif data == b"pub_cmd_sys":
+                            sys_text = (
+                                "📊 <b>TELEMETRY & SYSTEM COMMAND DIRECTORY (50+ TRIGGERS)</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<b>🔬 SYSTEM LATENCY & RESOURCE MONITORING</b>\n"
+                                "• <code>/ping</code> or <code>/latency</code> - Return internal loop delay & database ping.\n"
+                                "• <code>/dbstatus</code> - Query database integrity, write-ahead logging (WAL), and file sizes.\n"
+                                "• <code>/mem</code> or <code>/cpu</code> - Fetch server RAM usage and CPU load thresholds.\n"
+                                "• <code>/uptime</code> - View active session runtime parameters.\n\n"
+                                "<b>🔑 ROTATING API KEY POOLS</b>\n"
+                                "• <code>/keypool list</code> - Check status, API cooldown, and hit rate of active Gemini keys.\n"
+                                "• <code>/keypool add [gemini_api_key]</code> - Push a new key to the active rotation pool.\n"
+                                "• <code>/keypool remove [key_index]</code> - Deprecate key from pool.\n"
+                                "• <code>/keypool health [key_index]</code> - Query specific key rate limit status.\n\n"
+                                "<b>⚙️ NETWORK TUNING & LOGGING</b>\n"
+                                "• <code>/ws [restart|status]</code> - Recalibrate active dashboard WebSocket channels.\n"
+                                "• <code>/logview [limit] [level]</code> - Print background event logs dynamically.\n"
+                                "• <code>/loglevel [debug|info|warning|error]</code> - Configure terminal verbosity.\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Maximized concurrency. Peak stability under load.</i>"
+                            )
+                            cmd_buttons = [
+                                [Button.inline("⬅️ Back to Command Directory", b"pub_features")],
+                                [Button.inline("🏠 Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(sys_text, buttons=cmd_buttons, parse_mode="html")
+                            return
+
                         elif data == b"pub_security":
                             security_text = (
                                 "🛡️ <b>ESCROW & ANTI-FRAUD SHIELD</b>\n"
@@ -1074,6 +1196,8 @@ class TelegramManager:
                                 "⚡ <b>COET AI: THE ULTIMATE DIGITAL TWIN AUTOPILOT</b>\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                                 "<blockquote>COET is an elite, event-driven AI Digital Twin and distributed client automation assistant, engineered natively for high-load messaging operations and secure relation management.</blockquote>\n\n"
+                                "<b>🔍 LIVE DEMO CONSOLE:</b>\n"
+                                "• Experience the active autopilot simulation live: @CatVos\n\n"
                                 "<b>📈 THE ROI FORMULA:</b>\n"
                                 "• <b>Save Time</b>: Reclaim 20+ hours/week by automating repeat questions.\n"
                                 "• <b>Scale Instantly</b>: Handle 100+ customer DMs simultaneously 24/7.\n"
@@ -1089,7 +1213,8 @@ class TelegramManager:
                             )
                             reply_keyboard = [
                                 [Button.inline("⚡ Deploy Your Digital Twin", b"pub_setup")],
-                                [Button.inline("🧠 Style Mirroring DNA", b"pub_dna_info"), Button.inline("⚙️ Founder Commands", b"pub_features")],
+                                [Button.url("🔍 Check Live Demo (@CatVos)", "https://t.me/CatVos")],
+                                [Button.inline("🧠 Style Mirroring DNA", b"pub_dna_info"), Button.inline("⚙️ Command Directory (300+)", b"pub_features")],
                                 [Button.inline("🛡️ Escrow & Security", b"pub_security"), Button.inline("👥 Success Vouches", b"pub_vouches")],
                                 [Button.inline("📊 Live Telemetry", b"pub_telemetries"), Button.inline("💰 Pricing & $2 Trial", b"pub_pricing")],
                                 [Button.inline("ℹ️ Infrastructure Specs", b"pub_details")]
