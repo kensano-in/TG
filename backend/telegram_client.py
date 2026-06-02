@@ -800,8 +800,6 @@ class TelegramManager:
             db.set_setting("last_owner_chat_partner", str(dest_id))
             db.set_setting("last_owner_chat_partner_time", str(time.time()))
             db.set_setting(f"last_owner_read_{dest_id}", str(time.time()))
-            
-            dest_id = event.chat_id
             text = event.text or ""
             
             # Save message as owner
@@ -851,7 +849,15 @@ class TelegramManager:
                 
                 db.log_event("INFO", f"🤖 Bot received message from {sender_name} ({sender_id}): {text[:50]}")
                 
-                if text.strip().startswith("/") or text.strip().endswith("?"):
+                # Owner trigger: slash commands OR queries ending with ? (e.g. status?, ping?)
+                # IMPORTANT: Only treat "?" as an owner command trigger when sender IS the owner.
+                # Non-owner messages ending with "?" must fall through to the AI assistant.
+                is_owner_trigger = (
+                    text.strip().startswith("/") or
+                    (text.strip().endswith("?") and self.is_owner(sender_id))
+                )
+                
+                if is_owner_trigger:
                     if self.is_owner(sender_id):
                         try:
                             await self.execute_owner_command(event, text, is_bot=True)
@@ -859,13 +865,15 @@ class TelegramManager:
                             db.log_event("ERROR", f"Error in owner bot command: {e}")
                             await event.respond(f"❌ <b>Error:</b> {e}")
                     else:
+                        # Non-owners can only use /start and /help
                         cmd_norm = text.strip()[1:].lower().split()[0] if text.strip().startswith("/") else text.strip().lower()
                         if cmd_norm in ["start", "help"]:
                             try:
                                 await self.send_public_intro(event)
                             except Exception as e:
                                 db.log_event("ERROR", f"Error sending public intro: {e}")
-                    return # Silently ignore other command triggers for non-owners
+                    return  # End of trigger handling
+
                 else:
                     if self.is_owner(sender_id):
                         return # Strictly ignore non-command messages from the owner to avoid auto-reply loops
