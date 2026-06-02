@@ -605,6 +605,19 @@ def get_chat_history(telegram_id, limit=50):
     conn.close()
     return [dict(r) for r in reversed(rows)]
 
+def get_owner_messages(limit=500):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT text FROM messages 
+        WHERE sender = 'owner' 
+        ORDER BY id DESC 
+        LIMIT ?
+    """, (limit,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [r['text'] for r in rows if r['text']]
+
 def get_recent_messages_dashboard(limit=100):
     conn = get_db_connection()
     cursor = conn.cursor()

@@ -553,9 +553,9 @@ def generate_analysis_and_response(message_text, sender_info, chat_history, stat
             )
         return _fast_path_cache
 
-    # Format chat history — last 12 messages for better context
+    # Format chat history — last 100 messages for better context
     history_str = ""
-    for msg in chat_history[-12:]:
+    for msg in chat_history[-100:]:
         label = "CatVos" if msg['sender'] == 'owner' else ("Coet" if msg['sender'] == 'assistant' else "them")
         history_str += f"{label}: {msg['text']}\n"
 
@@ -575,6 +575,7 @@ def generate_analysis_and_response(message_text, sender_info, chat_history, stat
     smart_hinglish_enabled = db.get_setting("smart_hinglish", "1") == "1"
     knowledge_base         = db.get_setting("knowledge_base", "")
     personality            = custom_rules or ""
+    owner_style_profile    = db.get_setting("owner_style_profile", "")
 
     # Short casual status for the Gemini prompt
     casual_status_map_en = {
@@ -609,6 +610,11 @@ You text like a real person. Casual. Natural. Read what they said and actually r
 CatVos is currently: {status_context}
 
 ---
+OWNER STYLE DNA (CATVOS WRITING STYLE):
+Below is a detailed analysis of how CatVos (the owner) naturally texts. You MUST mimic this writing style:
+{owner_style_profile if owner_style_profile else "- Uses roman Hinglish or casual English. Uses lowercase mostly.\n- Direct and straight-to-the-point sentences; no corporate fluff.\n- Employs internet slang like 'rn', 'wp', 'tg', 'bhai', 'yaar'."}
+---
+
 FIRST: Learn from these examples. This is the EXACT style you must write in.
 
 BAD (never write like this):
@@ -903,3 +909,62 @@ def run_key_diagnostics():
                 "cooldown_remaining": cooldown_remaining
             })
     return results
+
+def rebuild_owner_style_profile():
+    """
+    Fetches up to 500 messages sent by the owner, analyzes them using Gemini,
+    and saves the resulting writing style traits profile in settings.
+    """
+    # Fetch messages
+    owner_msgs = db.get_owner_messages(limit=500)
+    if not owner_msgs:
+        # Fallback default traits
+        default_traits = (
+            "- Uses roman Hinglish for Hindi-speaking contacts, clear casual English for others.\n"
+            "- Employs internet slangs/abbreviations (e.g. 'rn', 'wp', 'tg', 'bhai', 'yaar', 'haan', 'kya').\n"
+            "- Short, straight-to-the-point sentences; doesn't write long paragraphs.\n"
+            "- Very casual tone, no exclamation marks or corporate fluff.\n"
+            "- Uses lowercase mostly, rare capitalisation except for acronyms.\n"
+            "- Friendly but business-aware."
+        )
+        db.set_setting("owner_style_profile", default_traits)
+        return default_traits
+
+    # Format messages for the prompt
+    formatted_messages = "\n".join([f"- {msg}" for msg in owner_msgs if msg and msg.strip()])
+    
+    prompt = f"""You are a master linguistic profiler.
+Analyze the following list of messages sent by the owner of this account (CatVos).
+Your goal is to extract his unique writing DNA so that an AI assistant (Coet) can mimic it perfectly.
+
+Analyze:
+1. Tone and attitude (casual, blunt, warm, polite, direct, energetic, etc.)
+2. Language composition (ratio of Hinglish/English, roman script usage, common hindi words like 'bhai', 'kya', 'hai', 'haan', 'yaar', etc.)
+3. Shorthands, slang, abbreviations, and casing (does he use lowercase? abbreviations like 'wp', 'tg', 'rn', 'free', etc.?)
+4. Average sentence/message length, sentence structure, and punctuation habits (e.g. does he use full stops? double spaces? emojis? question marks?).
+
+Output a bulleted, clean list of style rules.
+Keep it extremely concise, descriptive, and actionable for an AI assistant.
+Do not output any introductory or concluding text, just the bullet points of writing traits.
+
+MESSAGES SENT BY CATVOS:
+\"\"\"
+{formatted_messages}
+\"\"\"
+"""
+    try:
+        profile = generate_content_with_retry(prompt, model_name="gemini-2.5-flash")
+        if profile:
+            profile = profile.strip()
+            db.set_setting("owner_style_profile", profile)
+            db.set_setting("owner_style_last_update", str(time.time()))
+            db.log_event("INFO", f"Successfully rebuilt Owner Style DNA Profile based on {len(owner_msgs)} messages.")
+            return profile
+    except Exception as e:
+        db.log_event("ERROR", f"Failed to rebuild Owner Style DNA: {e}")
+        # Store a minimal status
+        current = db.get_setting("owner_style_profile")
+        if not current:
+            db.set_setting("owner_style_profile", "Failed to build profile. Mimic casual Hinglish/English styling.")
+        return None
+

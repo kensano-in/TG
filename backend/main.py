@@ -36,6 +36,14 @@ async def startup():
     db.init_db()
     db.log_event("INFO", "Initializing database and starting Telegram backend...")
     
+    # Rebuild owner style profile if not set yet
+    profile = db.get_setting("owner_style_profile")
+    if not profile:
+        import threading
+        import ai_engine
+        db.log_event("INFO", "Owner style DNA profile not found. Rebuilding on startup...")
+        threading.Thread(target=ai_engine.rebuild_owner_style_profile, daemon=True).start()
+    
     # Run the connection and listener registration in a background task to handle initial network drops robustly
     async def connect_and_start_bg():
         db.log_event("INFO", "Starting background Telegram client connection thread...")
@@ -91,6 +99,7 @@ class SettingsUpdate(BaseModel):
     active_hours_start: Optional[str] = None
     active_hours_end: Optional[str] = None
     assistant_name: Optional[str] = None
+    owner_style_profile: Optional[str] = None
 
 class ManualReply(BaseModel):
     telegram_id: int
@@ -250,6 +259,7 @@ async def get_settings(token: dict = Depends(verify_token)):
         "reply_delay_max": db.get_setting("reply_delay_max", "4"),
         "active_hours_start": db.get_setting("active_hours_start", "9"),
         "active_hours_end": db.get_setting("active_hours_end", "23"),
+        "owner_style_profile": db.get_setting("owner_style_profile", ""),
     }
 
 @app.post("/api/settings")
@@ -310,8 +320,20 @@ async def update_settings(data: SettingsUpdate, token: dict = Depends(verify_tok
     if data.assistant_name is not None:
         db.set_setting("assistant_name", data.assistant_name)
         db.log_event("INFO", f"Assistant designation updated.")
+    if data.owner_style_profile is not None:
+        db.set_setting("owner_style_profile", data.owner_style_profile)
+        db.log_event("INFO", "Owner style DNA profile updated.")
         
     return {"status": "success"}
+
+@app.post("/api/settings/rebuild_owner_profile")
+async def rebuild_owner_profile(token: dict = Depends(verify_token)):
+    import ai_engine
+    profile = ai_engine.rebuild_owner_style_profile()
+    if profile:
+        return {"status": "success", "profile": profile}
+    else:
+        return {"status": "error", "message": "Failed to rebuild style profile"}
 
 @app.get("/api/rules/keywords")
 async def get_keywords(token: dict = Depends(verify_token)):

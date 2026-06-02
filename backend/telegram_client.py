@@ -191,6 +191,27 @@ class TelegramManager:
         except Exception as e:
             db.log_event("ERROR", f"Error in background memory consolidation for {sender_id}: {e}")
 
+    def maybe_trigger_owner_style_rebuild(self):
+        # Throttle rebuild to once every 30 minutes to prevent API key exhaustion
+        last_rebuild = db.get_setting("owner_style_last_update", "0")
+        try:
+            last_rebuild_time = float(last_rebuild)
+        except ValueError:
+            last_rebuild_time = 0.0
+            
+        if time.time() - last_rebuild_time > 1800: # 30 minutes
+            # Increment a counter of new messages
+            new_msgs_count = int(db.get_setting("owner_new_messages_since_rebuild", "0")) + 1
+            if new_msgs_count >= 10:
+                db.set_setting("owner_new_messages_since_rebuild", "0")
+                # Trigger in a background thread to not block the main process
+                import threading
+                import ai_engine
+                db.log_event("INFO", "Throttled owner style profile rebuild triggered in background.")
+                threading.Thread(target=ai_engine.rebuild_owner_style_profile, daemon=True).start()
+            else:
+                db.set_setting("owner_new_messages_since_rebuild", str(new_msgs_count))
+
     def is_owner(self, sender_id):
         if not sender_id:
             return False
@@ -589,7 +610,7 @@ class TelegramManager:
                 return
 
             # Get full chat history to feed Gemini
-            history = db.get_chat_history(sender_id, limit=10)
+            history = db.get_chat_history(sender_id, limit=150)
             
             # Check if Coet has already introduced itself (to avoid repetition)
             has_introduced = any(
@@ -805,6 +826,9 @@ class TelegramManager:
             # Save message as owner
             db.get_or_create_contact(dest_id, "", "", "")
             db.add_message(dest_id, 'owner', text)
+            
+            # Check and trigger writing style DNA rebuild if needed
+            self.maybe_trigger_owner_style_rebuild()
             
             # Clear any pending drafts for this chat
             db.set_setting(f"draft_{dest_id}", "")
@@ -1848,7 +1872,7 @@ class TelegramManager:
             return
             
         # Call Gemini to respond as public business assistant using 15s timeout with key rotation
-        history = db.get_chat_history(sender_id, limit=10)
+        history = db.get_chat_history(sender_id, limit=150)
         personality = db.get_setting("ai_personality")
 
         # Check conversation context flags
