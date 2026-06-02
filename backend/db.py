@@ -77,10 +77,21 @@ class PostgresCursorWrapper:
         row = self.cursor.fetchone()
         if row is None:
             return None
-        return row
+        # psycopg2 DictCursor returns DictRow — convert to plain dict for consistent access
+        try:
+            return dict(row)
+        except Exception:
+            return row
 
     def fetchall(self):
-        return self.cursor.fetchall()
+        rows = self.cursor.fetchall()
+        result = []
+        for row in rows:
+            try:
+                result.append(dict(row))
+            except Exception:
+                result.append(row)
+        return result
 
     @property
     def rowcount(self):
@@ -377,28 +388,27 @@ def init_db():
     """)
     
     # Run migrations for language and tone in messages table
-    try:
-        cursor.execute("ALTER TABLE messages ADD COLUMN language TEXT DEFAULT 'english'")
-    except sqlite3.OperationalError:
-        pass # Column already exists
-    try:
-        cursor.execute("ALTER TABLE messages ADD COLUMN tone TEXT DEFAULT 'neutral'")
-    except sqlite3.OperationalError:
-        pass # Column already exists
-        
+    # NOTE: We must handle BOTH sqlite3.OperationalError (SQLite) AND psycopg2 DuplicateColumn errors (PostgreSQL)
+    # PostgreSQL aborts the transaction on any error, so we must commit/rollback between migration attempts
+    def _run_migration(conn, cursor, sql):
+        """Safely attempt a schema migration, ignoring column-already-exists errors."""
+        try:
+            cursor.execute(sql)
+            conn.commit()
+        except Exception:
+            # Rollback to clear the aborted transaction state (critical for PostgreSQL)
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+
+    _run_migration(conn, cursor, "ALTER TABLE messages ADD COLUMN language TEXT DEFAULT 'english'")
+    _run_migration(conn, cursor, "ALTER TABLE messages ADD COLUMN tone TEXT DEFAULT 'neutral'")
+
     # Run migrations for keyword_rules table fields
-    try:
-        cursor.execute("ALTER TABLE keyword_rules ADD COLUMN match_mode TEXT DEFAULT 'contains'")
-    except sqlite3.OperationalError:
-        pass
-    try:
-        cursor.execute("ALTER TABLE keyword_rules ADD COLUMN action_type TEXT DEFAULT 'reply'")
-    except sqlite3.OperationalError:
-        pass
-    try:
-        cursor.execute("ALTER TABLE keyword_rules ADD COLUMN action_value TEXT DEFAULT ''")
-    except sqlite3.OperationalError:
-        pass
+    _run_migration(conn, cursor, "ALTER TABLE keyword_rules ADD COLUMN match_mode TEXT DEFAULT 'contains'")
+    _run_migration(conn, cursor, "ALTER TABLE keyword_rules ADD COLUMN action_type TEXT DEFAULT 'reply'")
+    _run_migration(conn, cursor, "ALTER TABLE keyword_rules ADD COLUMN action_value TEXT DEFAULT ''")
     
     # Insert default settings if they don't exist
     default_settings = [
@@ -443,7 +453,8 @@ def init_db():
     # Migrate/Update existing setting if it was using the old, repetitive introduction prompt
     cursor.execute("SELECT value FROM settings WHERE key = 'ai_personality'")
     row = cursor.fetchone()
-    if row and "Always introduce yourself" in row[0]:
+    _row_value = (row.get('value') if isinstance(row, dict) else row[0]) if row else None
+    if _row_value and "Always introduce yourself" in _row_value:
         cursor.execute("UPDATE settings SET value = ? WHERE key = 'ai_personality'", (
             "You are Coet, CatVos's executive assistant/manager. Keep replies warm, professional, respectful, concise, and human-like. Never mention you are an AI or Gemini. Only introduce yourself as Coet, CatVos's manager on the first message or if the contact asks who you are. For subsequent messages, speak naturally and directly as his manager without repeating your name or introduction. Keep replies to 1 sentence maximum.",
         ))
@@ -764,8 +775,15 @@ def get_assistant_reply_count_since_last_owner(telegram_id):
             SELECT COUNT(*) FROM messages 
             WHERE telegram_id = ? AND sender = 'assistant'
         """, (telegram_id,))
-        
-    count = cursor.fetchone()[0]
+
+    row = cursor.fetchone()
+    if row is None:
+        count = 0
+    elif isinstance(row, dict):
+        # DictCursor returns a dict; COUNT(*) column name varies
+        count = list(row.values())[0]
+    else:
+        count = row[0]
     conn.close()
     return count
 

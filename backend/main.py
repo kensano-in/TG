@@ -476,25 +476,37 @@ async def get_logs(token: dict = Depends(verify_token)):
 async def get_analytics(token: dict = Depends(verify_token)):
     conn = db.get_db_connection()
     cursor = conn.cursor()
+
+    def _scalar(row):
+        """Extract first value from either a sqlite3.Row, a dict (DictCursor), or a plain tuple."""
+        if row is None:
+            return 0
+        if isinstance(row, dict):
+            return list(row.values())[0]
+        try:
+            return row[0]
+        except Exception:
+            return 0
     
     # Message stats
     cursor.execute("SELECT COUNT(*) FROM messages")
-    total_messages = cursor.fetchone()[0]
+    total_messages = _scalar(cursor.fetchone())
     
     cursor.execute("SELECT COUNT(*) FROM messages WHERE sender = 'assistant'")
-    handled_by_ai = cursor.fetchone()[0]
+    handled_by_ai = _scalar(cursor.fetchone())
     
     cursor.execute("SELECT COUNT(*) FROM messages WHERE priority = 'critical'")
-    critical_alerts = cursor.fetchone()[0]
+    critical_alerts = _scalar(cursor.fetchone())
 
     # Response rate
     cursor.execute("SELECT COUNT(DISTINCT telegram_id) FROM messages WHERE sender = 'contact'")
-    total_contact_chats = cursor.fetchone()[0]
+    total_contact_chats = _scalar(cursor.fetchone())
     cursor.execute("SELECT COUNT(DISTINCT telegram_id) FROM messages WHERE sender = 'assistant'")
-    replied_chats = cursor.fetchone()[0]
+    replied_chats = _scalar(cursor.fetchone())
     response_rate = round((replied_chats / total_contact_chats * 100) if total_contact_chats > 0 else 0, 1)
 
     # Avg response time (seconds) — approximate
+    # julianday() is SQLite-specific; the PostgresCursorWrapper translates this query automatically
     cursor.execute("""
         SELECT AVG(CAST(julianday(a.timestamp) * 86400 AS INTEGER) - CAST(julianday(c.timestamp) * 86400 AS INTEGER))
         FROM messages c
@@ -503,18 +515,34 @@ async def get_analytics(token: dict = Depends(verify_token)):
         )
         WHERE c.sender = 'contact'
     """)
-    avg_rt = cursor.fetchone()[0]
-    avg_response_time = round(avg_rt, 1) if avg_rt else 0
+    avg_rt = _scalar(cursor.fetchone())
+    avg_response_time = round(float(avg_rt), 1) if avg_rt else 0
     
     # Categories count
     cursor.execute("SELECT category, COUNT(*) FROM contacts GROUP BY category")
     categories_raw = cursor.fetchall()
-    categories = {cat: count for cat, count in categories_raw if cat}
+    categories = {}
+    for r in categories_raw:
+        if isinstance(r, dict):
+            vals = list(r.values())
+            cat, cnt = vals[0], vals[1]
+        else:
+            cat, cnt = r[0], r[1]
+        if cat:
+            categories[cat] = cnt
     
     # Sentiments
     cursor.execute("SELECT sentiment, COUNT(*) FROM messages WHERE sender = 'contact' GROUP BY sentiment")
     sentiments_raw = cursor.fetchall()
-    sentiments = {sent: count for sent, count in sentiments_raw if sent}
+    sentiments = {}
+    for r in sentiments_raw:
+        if isinstance(r, dict):
+            vals = list(r.values())
+            sent, cnt = vals[0], vals[1]
+        else:
+            sent, cnt = r[0], r[1]
+        if sent:
+            sentiments[sent] = cnt
     
     # Daily counts (last 7 days)
     cursor.execute("""
@@ -524,7 +552,14 @@ async def get_analytics(token: dict = Depends(verify_token)):
         ORDER BY date(timestamp) DESC 
         LIMIT 7
     """)
-    daily_history = [{"date": r[0], "count": r[1]} for r in cursor.fetchall()]
+    daily_raw = cursor.fetchall()
+    daily_history = []
+    for r in daily_raw:
+        if isinstance(r, dict):
+            vals = list(r.values())
+            daily_history.append({"date": str(vals[0]), "count": vals[1]})
+        else:
+            daily_history.append({"date": r[0], "count": r[1]})
     
     conn.close()
     

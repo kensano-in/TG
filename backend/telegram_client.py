@@ -876,12 +876,19 @@ class TelegramManager:
                     elif data == b"stats":
                         conn = db.get_db_connection()
                         cursor = conn.cursor()
+
+                        def _scalar_cb(row):
+                            if row is None: return 0
+                            if isinstance(row, dict): return list(row.values())[0]
+                            try: return row[0]
+                            except Exception: return 0
+
                         cursor.execute("SELECT COUNT(*) FROM messages")
-                        total_msgs = cursor.fetchone()[0]
+                        total_msgs = _scalar_cb(cursor.fetchone())
                         cursor.execute("SELECT COUNT(*) FROM logs")
-                        total_logs = cursor.fetchone()[0]
+                        total_logs = _scalar_cb(cursor.fetchone())
                         cursor.execute("SELECT COUNT(*) FROM contacts WHERE is_muted = 1")
-                        total_muted = cursor.fetchone()[0]
+                        total_muted = _scalar_cb(cursor.fetchone())
                         conn.close()
                         
                         stats_text = (
