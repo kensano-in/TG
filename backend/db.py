@@ -65,6 +65,13 @@ class PostgresCursorWrapper:
             query = query.replace("GROUP BY date(timestamp)", "GROUP BY timestamp::date")
             query = query.replace("ORDER BY date(timestamp) DESC", "ORDER BY timestamp::date DESC")
 
+        # Telegram IDs are 64-bit — must be BIGINT not INTEGER in PostgreSQL
+        # This handles non-PK telegram_id columns (FK references in messages, reminders, etc.)
+        if "telegram_id INTEGER" in query and "PRIMARY KEY" not in query:
+            query = query.replace("telegram_id INTEGER", "telegram_id BIGINT")
+        # Also handle is_muted INTEGER and other non-ID integers that are fine as-is
+        # (no change needed for those)
+
         # Execute query
         if params is not None:
             # Handle float/int to string coercions if necessary
@@ -409,7 +416,16 @@ def init_db():
     _run_migration(conn, cursor, "ALTER TABLE keyword_rules ADD COLUMN match_mode TEXT DEFAULT 'contains'")
     _run_migration(conn, cursor, "ALTER TABLE keyword_rules ADD COLUMN action_type TEXT DEFAULT 'reply'")
     _run_migration(conn, cursor, "ALTER TABLE keyword_rules ADD COLUMN action_value TEXT DEFAULT ''")
-    
+
+    # CRITICAL: Migrate telegram_id columns from INTEGER (32-bit) to BIGINT (64-bit)
+    # Modern Telegram user IDs exceed PostgreSQL INTEGER range (max ~2.1 billion)
+    # These ALTER statements are safe no-ops on SQLite (ignored via exception catch)
+    db_url = os.getenv("DATABASE_URL")
+    if db_url:
+        _run_migration(conn, cursor, "ALTER TABLE messages ALTER COLUMN telegram_id TYPE BIGINT")
+        _run_migration(conn, cursor, "ALTER TABLE reminders ALTER COLUMN telegram_id TYPE BIGINT")
+        _run_migration(conn, cursor, "ALTER TABLE founder_items ALTER COLUMN id TYPE BIGINT")
+        _run_migration(conn, cursor, "ALTER TABLE contacts ALTER COLUMN is_muted TYPE BIGINT")
     # Insert default settings if they don't exist
     default_settings = [
         ("status", "focus"), # online, busy, sleeping, travel, focus, vacation
