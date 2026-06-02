@@ -137,31 +137,66 @@ def get_db_connection():
     if db_url:
         db_url = db_url.strip().strip("'").strip('"')
         import psycopg2
-        # Parse into connection kwargs to handle special characters properly
-        from urllib.parse import urlparse, unquote
-        # If it doesn't have a protocol prefix, add one temporarily to let urlparse process it
-        temp_url = db_url
-        if "://" not in temp_url:
-            temp_url = "postgresql://" + temp_url
-            
+        from urllib.parse import unquote
+        
         try:
-            result = urlparse(temp_url)
-            username = unquote(result.username) if result.username else None
-            password = unquote(result.password) if result.password else None
-            database = unquote(result.path[1:]) if result.path else None
-            hostname = result.hostname
-            port = result.port
-            
-            conn = psycopg2.connect(
-                database=database,
-                user=username,
-                password=password,
-                host=hostname,
-                port=port
-            )
-        except Exception:
-            # Fallback to direct string connection if parsing fails completely
+            # Robust custom parsing to handle passwords with special characters like '@' or '#'
+            url_str = db_url
+            if url_str.startswith("postgresql://"):
+                url_str = url_str[len("postgresql://"):]
+            elif url_str.startswith("postgres://"):
+                url_str = url_str[len("postgres://"):]
+            elif "://" in url_str:
+                url_str = url_str.split("://", 1)[1]
+                
+            if "@" in url_str:
+                parts = url_str.rsplit("@", 1)
+                user_pass = parts[0]
+                host_port_db = parts[1]
+                
+                if ":" in user_pass:
+                    username, password = user_pass.split(":", 1)
+                else:
+                    username = user_pass
+                    password = ""
+                    
+                if "/" in host_port_db:
+                    host_port, database = host_port_db.split("/", 1)
+                else:
+                    host_port = host_port_db
+                    database = ""
+                    
+                if ":" in host_port:
+                    hostname, port = host_port.split(":", 1)
+                else:
+                    hostname = host_port
+                    port = "5432"
+                    
+                conn = psycopg2.connect(
+                    database=unquote(database),
+                    user=unquote(username),
+                    password=unquote(password),
+                    host=hostname,
+                    port=int(port) if port.isdigit() else 5432
+                )
+            else:
+                # Fallback to standard urlparse if no '@' found
+                from urllib.parse import urlparse
+                temp_url = db_url
+                if "://" not in temp_url:
+                    temp_url = "postgresql://" + temp_url
+                result = urlparse(temp_url)
+                conn = psycopg2.connect(
+                    database=unquote(result.path[1:]) if result.path else None,
+                    user=unquote(result.username) if result.username else None,
+                    password=unquote(result.password) if result.password else None,
+                    host=result.hostname,
+                    port=result.port
+                )
+        except Exception as e:
+            # Final fallback to direct DSN parsing
             conn = psycopg2.connect(db_url)
+            
         return PostgresConnectionWrapper(conn)
     else:
         conn = sqlite3.connect(DB_FILE, timeout=10.0)
