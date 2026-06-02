@@ -262,15 +262,28 @@ class TelegramManager:
     async def send_public_intro(self, event):
         from telethon import Button
         
+        # 1. Clear the legacy persistent reply keyboard instantly via temporary message deletion
+        try:
+            clear_msg = await self.bot_client.send_message(
+                event.chat_id,
+                "⚡ <i>Syncing interface...</i>",
+                buttons=Button.clear(),
+                parse_mode="html"
+            )
+            await self.bot_client.delete_messages(event.chat_id, [clear_msg.id])
+        except Exception as e:
+            db.log_event("WARNING", f"Could not clear persistent reply keyboard: {e}")
+        
+        # 2. Setup marketing-optimized copy with ROI calculations
         intro_text = (
             "⚡ <b>COET AI: THE ULTIMATE DIGITAL TWIN AUTOPILOT</b>\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             "<blockquote>COET is an elite, event-driven AI Digital Twin and distributed client automation assistant, engineered natively for high-load messaging operations and secure relation management.</blockquote>\n\n"
-            "<b>🎯 WHY DEPLOY COET?</b>\n"
+            "<b>📈 THE ROI FORMULA:</b>\n"
             "• <b>Save Time</b>: Reclaim 20+ hours/week by automating repeat questions.\n"
-            "• <b>Typing DNA Mirror</b>: Learns and writes in your exact style (Roman Hinglish, casing, abbreviations).\n"
-            "• <b>Escrow & Deals</b>: Guides buyer/seller deals securely with auto-fees.\n"
-            "• <b>Security Shield</b>: Impersonator scanning, rate-limits, and spam filters.\n\n"
+            "• <b>Scale Instantly</b>: Handle 100+ customer DMs simultaneously 24/7.\n"
+            "• <b>Cut Costs</b>: Replaces a $1,200/month human manager for just $50/month.\n"
+            "• <b>Zero Leakage</b>: Instantly guides leads to checkout/deals while you sleep.\n\n"
             "👥 <i>Trusted by premium OTC desks and high-volume Telegram brokers to automate client relations 24/7.</i>\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             "<b>🛡️ DEVELOPER CREDENTIALS:</b>\n"
@@ -280,11 +293,13 @@ class TelegramManager:
             "<i>Select a protocol option below to explore features, specs, and deploy your autopilot assistant.</i>"
         )
         
+        # 3. Premium 9-button grid keyboard layout
         reply_keyboard = [
-            [Button.inline("⚡ Deploy Your Autopilot", b"pub_setup")],
-            [Button.inline("ℹ️ Specs & Details", b"pub_details"), Button.inline("🎯 Features & Commands", b"pub_features")],
-            [Button.inline("🛡️ Escrow & Security", b"pub_security"), Button.inline("👥 Client Vouches", b"pub_vouches")],
-            [Button.inline("📊 Live Telemetry", b"pub_telemetries"), Button.inline("📖 Pricing & FAQ", b"pub_pricing")]
+            [Button.inline("⚡ Deploy Your Digital Twin", b"pub_setup")],
+            [Button.inline("🧠 Style Mirroring DNA", b"pub_dna_info"), Button.inline("⚙️ Founder Commands", b"pub_features")],
+            [Button.inline("🛡️ Escrow & Security", b"pub_security"), Button.inline("👥 Success Vouches", b"pub_vouches")],
+            [Button.inline("📊 Live Telemetry", b"pub_telemetries"), Button.inline("💰 Pricing & $2 Trial", b"pub_pricing")],
+            [Button.inline("ℹ️ Infrastructure Specs", b"pub_details")]
         ]
         
         await self.bot_client.send_message(
@@ -928,12 +943,28 @@ class TelegramManager:
                                 "• <b>Linguistic Mimicry</b>: Scans your historical messages to replicate your unique writing style (Roman Hinglish/English balance, casing, abbreviations like 'rn', 'wp', 'tg', 'bhai', 'yaar').\n"
                                 "• <b>RAG FAQ Integration</b>: Train your bot on your specific middleman policies, rates, and stock availability rules.\n"
                                 "• <b>Typing Simulation</b>: Automatically shows typing indicators and introduces natural time delays matching your status.\n\n"
-                                "🔥 <b>SCARCITY NOTICE:</b>\n"
-                                "We limit onboarding to <b>10 premium setups per month</b> to guarantee dedicated high-speed hosting and server stability for each client.\n\n"
+                                "🔥 <b>SCARCITY WARNING:</b>\n"
+                                "Only <b>4 out of 10</b> slots remain for this onboarding batch. Setup takes up to 24 hours. Batch closes strictly within 48 hours to ensure dedicated server performance for existing clients.\n\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                                 "<i>Initiate secure onboarding directly via the developer.</i>"
                             )
                             await event.edit(setup_text, buttons=cta_buttons, parse_mode="html")
+                            return
+                            
+                        elif data == b"pub_dna_info":
+                            dna_text = (
+                                "🧠 <b>STYLE MIRRORING DNA</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>Coet does not write like a sterile robot. It clones YOUR specific texting DNA.</blockquote>\n\n"
+                                "<b>🔬 LINGUISTIC ENGINE PROCESSES:</b>\n"
+                                "• <b>Casing & Punctuation</b>: Mirrors if you use lowercase, type without full stops, or write in sentence case.\n"
+                                "• <b>Roman Hinglish Blend</b>: Dynamically shifts between Hindi/English slang ('bhai', 'yaar', 'rn', 'wp', 'bro') matching the client's vibe.\n"
+                                "• <b>Abbreviations & Slang</b>: Clones your custom abbreviations, typos, and emoji density.\n"
+                                "• <b>Background Learning</b>: Reads historical messaging patterns continuously to keep your style fresh.\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Uncannily human. Your clients won't suspect a thing.</i>"
+                            )
+                            await event.edit(dna_text, buttons=cta_buttons, parse_mode="html")
                             return
                             
                         elif data == b"pub_details":
@@ -1026,11 +1057,13 @@ class TelegramManager:
                                 "<b>💰 COMMERCIAL LICENSING:</b>\n"
                                 "• <b>Standard Autopilot Plan</b>: Starting at <b>$50/month</b> (includes full hosting, style DNA setup, and rotated Gemini API keys).\n"
                                 "• <b>Custom RAG Tier</b>: Custom pricing based on business FAQ size and custom database integrations.\n\n"
+                                "<b>⚡ PAID TRIAL ONBOARDING:</b>\n"
+                                "• <b>1-Day Subscription Session</b>: Get a full 1-day trial session for just <b>$2</b>. We don't offer free trials because high-quality digital twin processing requires dedicated GPU resources. Filter out low-intent window shoppers and test the limits immediately.\n\n"
                                 "<b>❓ FAQs:</b>\n"
                                 "• <i>Will my account get restricted?</i> No. Coet mimics natural typing behaviors, sets active hours, and throttles responses safely.\n"
                                 "• <i>Can I tweak the rules?</i> Yes, you get a full glassmorphic web dashboard to modify FAQs, statuses, and style traits.\n\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                "<i>We offer a 3-day demo trial for qualified OTC desks.</i>"
+                                "<i>Deploy your trial assistant today for only $2.</i>"
                             )
                             await event.edit(pricing_text, buttons=cta_buttons, parse_mode="html")
                             return
@@ -1041,11 +1074,11 @@ class TelegramManager:
                                 "⚡ <b>COET AI: THE ULTIMATE DIGITAL TWIN AUTOPILOT</b>\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                                 "<blockquote>COET is an elite, event-driven AI Digital Twin and distributed client automation assistant, engineered natively for high-load messaging operations and secure relation management.</blockquote>\n\n"
-                                "<b>🎯 WHY DEPLOY COET?</b>\n"
+                                "<b>📈 THE ROI FORMULA:</b>\n"
                                 "• <b>Save Time</b>: Reclaim 20+ hours/week by automating repeat questions.\n"
-                                "• <b>Typing DNA Mirror</b>: Learns and writes in your exact style (Roman Hinglish, casing, abbreviations).\n"
-                                "• <b>Escrow & Deals</b>: Guides buyer/seller deals securely with auto-fees.\n"
-                                "• <b>Security Shield</b>: Impersonator scanning, rate-limits, and spam filters.\n\n"
+                                "• <b>Scale Instantly</b>: Handle 100+ customer DMs simultaneously 24/7.\n"
+                                "• <b>Cut Costs</b>: Replaces a $1,200/month human manager for just $50/month.\n"
+                                "• <b>Zero Leakage</b>: Instantly guides leads to checkout/deals while you sleep.\n\n"
                                 "👥 <i>Trusted by premium OTC desks and high-volume Telegram brokers to automate client relations 24/7.</i>\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                                 "<b>🛡️ DEVELOPER CREDENTIALS:</b>\n"
@@ -1055,10 +1088,11 @@ class TelegramManager:
                                 "<i>Select a protocol option below to explore features, specs, and deploy your autopilot assistant.</i>"
                             )
                             reply_keyboard = [
-                                [Button.inline("⚡ Deploy Your Autopilot", b"pub_setup")],
-                                [Button.inline("ℹ️ Specs & Details", b"pub_details"), Button.inline("🎯 Features & Commands", b"pub_features")],
-                                [Button.inline("🛡️ Escrow & Security", b"pub_security"), Button.inline("👥 Client Vouches", b"pub_vouches")],
-                                [Button.inline("📊 Live Telemetry", b"pub_telemetries"), Button.inline("📖 Pricing & FAQ", b"pub_pricing")]
+                                [Button.inline("⚡ Deploy Your Digital Twin", b"pub_setup")],
+                                [Button.inline("🧠 Style Mirroring DNA", b"pub_dna_info"), Button.inline("⚙️ Founder Commands", b"pub_features")],
+                                [Button.inline("🛡️ Escrow & Security", b"pub_security"), Button.inline("👥 Success Vouches", b"pub_vouches")],
+                                [Button.inline("📊 Live Telemetry", b"pub_telemetries"), Button.inline("💰 Pricing & $2 Trial", b"pub_pricing")],
+                                [Button.inline("ℹ️ Infrastructure Specs", b"pub_details")]
                             ]
                             await event.edit(intro_text, buttons=reply_keyboard, parse_mode="html")
                             return
@@ -1862,8 +1896,8 @@ class TelegramManager:
                     "• <b>Linguistic Mimicry</b>: Scans your historical messages to replicate your unique writing style (Roman Hinglish/English balance, casing, abbreviations like 'rn', 'wp', 'tg', 'bhai', 'yaar').\n"
                     "• <b>RAG FAQ Integration</b>: Train your bot on your specific middleman policies, rates, and stock availability rules.\n"
                     "• <b>Typing Simulation</b>: Automatically shows typing indicators and introduces natural time delays matching your status.\n\n"
-                    "🔥 <b>SCARCITY NOTICE:</b>\n"
-                    "We limit onboarding to <b>10 premium setups per month</b> to guarantee dedicated high-speed hosting and server stability for each client.\n\n"
+                    "🔥 <b>SCARCITY WARNING:</b>\n"
+                    "Only <b>4 out of 10</b> slots remain for this onboarding batch. Setup takes up to 24 hours. Batch closes strictly within 48 hours to ensure dedicated server performance for existing clients.\n\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                     "<i>Initiate secure onboarding directly via the developer.</i>"
                 ),
@@ -1915,11 +1949,13 @@ class TelegramManager:
                     "<b>💰 COMMERCIAL LICENSING:</b>\n"
                     "• <b>Standard Autopilot Plan</b>: Starting at <b>$50/month</b> (includes full hosting, style DNA setup, and rotated Gemini API keys).\n"
                     "• <b>Custom RAG Tier</b>: Custom pricing based on business FAQ size and custom database integrations.\n\n"
+                    "<b>⚡ PAID TRIAL ONBOARDING:</b>\n"
+                    "• <b>1-Day Subscription Session</b>: Get a full 1-day trial session for just <b>$2</b>. We don't offer free trials because high-quality digital twin processing requires dedicated GPU resources. Filter out low-intent window shoppers and test the limits immediately.\n\n"
                     "<b>❓ FAQs:</b>\n"
                     "• <i>Will my account get restricted?</i> No. Coet mimics natural typing behaviors, sets active hours, and throttles responses safely.\n"
                     "• <i>Can I tweak the rules?</i> Yes, you get a full glassmorphic web dashboard to modify FAQs, statuses, and style traits.\n\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "<i>We offer a 3-day demo trial for qualified OTC desks.</i>"
+                    "<i>Deploy your trial assistant today for only $2.</i>"
                 )
             }
             
