@@ -199,26 +199,28 @@ def check_fast_path_query(message_text, status_mode="focus", chat_history=None, 
     
     # 3. Status message depending on mode & language
     status_lower = status_mode.lower()
+    # Short, casual status phrase for human-sounding replies
+    casual_status_en = {
+        "sleeping": "sleeping rn",
+        "busy": "locked into a deal rn",
+        "focus": "heads down in deep work rn",
+        "travel": "traveling rn, limited signal",
+        "online": "occupied in another chat rn",
+        "vacation": "on vacation rn",
+    }.get(status_lower, "away rn")
+    casual_status_hi = {
+        "sleeping": "so raha hai abhi",
+        "busy": "ek deal mein busy hai abhi",
+        "focus": "deep work mein hai abhi",
+        "travel": "travel pe hai abhi, signal kam hai",
+        "online": "doosri chat mein hai abhi",
+        "vacation": "vacation pe hai abhi",
+    }.get(status_lower, "bahar hai abhi")
     if is_hinglish:
-        status_map = {
-            "sleeping": "CatVos abhi rest kar rahe hain. Subah active hote hi aapse contact karenge.",
-            "busy": "CatVos abhi ek high-priority deal setup me busy hain.",
-            "focus": "CatVos abhi offline focus deep-work me hain.",
-            "travel": "CatVos travel kar rahe hain limited connection ke sath. Aate hi reply denge.",
-            "online": "CatVos online hain par dusri check chats me busy hain. Main notifications trigger kar deta hu.",
-            "vacation": "CatVos vacation par hain, wo check karke respond karenge thoda delay se.",
-        }
-        status_msg = status_map.get(status_lower, "CatVos abhi offline/unavailable hain.")
+        status_msg = f"CatVos {casual_status_hi}"
     else:
-        status_map = {
-            "sleeping": "CatVos is currently offline resting. He will get back to you first thing in the morning.",
-            "busy": "CatVos is currently in a high-priority escrow session.",
-            "focus": "CatVos is in deep focus work mode right now.",
-            "travel": "CatVos is traveling with limited connectivity. Expect a reply soon.",
-            "online": "CatVos is online but active in another chat session.",
-            "vacation": "CatVos is on vacation but I'll make sure he sees this.",
-        }
-        status_msg = status_map.get(status_lower, "CatVos is currently away.")
+        status_msg = f"CatVos is {casual_status_en}"
+
 
     # 4. Intent checks
     
@@ -228,17 +230,18 @@ def check_fast_path_query(message_text, status_mode="focus", chat_history=None, 
     if is_mm_intent and is_fee_query:
         if is_hinglish:
             replies = [
-                f"Middleman secure escrow coordination ki fee deal value ka standard {mm_fee} secure charge hai. {status_msg}",
-                f"CatVos middleman deal coordination ka secure flat fee {mm_fee} rate charge karte hain. Jaise hi wo active honge setup details forward kar denge.",
-                f"Safe transactions coordinate karne ke liye middleman fee {mm_fee} hai. Aap deal information ready rakhiye, active hote hi CatVos start kar denge!"
+                f"haan bhai MM deal ke liye fee {mm_fee} hai. secure escrow deal setup karna chahte ho? CatVos {casual_status_hi} — aate hi directly coordinate karenge",
+                f"middleman fee {mm_fee} hai yaar. {casual_status_hi} CatVos, aate hi deal setup detail discuss kar lena unse directly",
+                f"MM fee {mm_fee} hai. deal ready karo, CatVos {casual_status_hi} — free hote hi sab setup kar denge!"
             ]
         else:
             replies = [
-                f"Our safe middleman coordination service carries a secure {mm_fee} fee. {status_msg}",
-                f"The fee for middleman deals is flat {mm_fee} of the deal volume to ensure a fully secured escrow. CatVos will guide you through details shortly.",
-                f"For escrow setups, the secure middleman charge is {mm_fee}. CatVos will get back to you soon to set up the deal!"
+                f"middleman fee is {mm_fee} for secure escrow coordination. CatVos is {casual_status_en} but he'll walk you through the setup directly once he's free!",
+                f"yep, MM fee is {mm_fee}. CatVos is {casual_status_en} — he'll hit you up to get the deal set up as soon as he's back",
+                f"escrow fee is {mm_fee}. get your deal details ready and CatVos will coordinate everything with you directly!"
             ]
         return random.choice(replies), "mm_fees"
+
 
     # Intent B: WhatsApp / Telegram Account Pricing / Buying
     is_wp = any(x in msg for x in ["wp", "whatsapp"])
@@ -248,38 +251,43 @@ def check_fast_path_query(message_text, status_mode="focus", chat_history=None, 
         if is_hinglish:
             if is_wp and not is_tg:
                 replies = [
-                    f"Haan! WhatsApp alts available hain stock mein. CatVos aate hi aapko full catalog aur rates directly share karenge — {status_msg}",
-                    f"Yes, WhatsApp fresh accounts ka stock available hai. CatVos online hote hi direct details aur options aapke saath discuss karenge!",
+                    f"haan bhai! WP alts hain stock mein. CatVos {casual_status_hi} — free hote hi full catalog aur options directly share kar denge. tab tak kuch aur batao?",
+                    f"yep WP fresh accounts available hain. CatVos {casual_status_hi}, aate hi directly pricing aur details discuss kar lena",
+                    f"haan hain! WhatsApp alts ka fresh stock available hai. CatVos aate hi sab details send kar denge directly — {casual_status_hi} abhi",
                 ]
             elif is_tg and not is_wp:
                 replies = [
-                    f"Haan! Telegram channels/alts available hain. CatVos aate hi fresh catalog aur specifications directly share karenge — {status_msg}",
-                    f"Yes, Telegram channels aur groups ka fresh stock ready hai. CatVos aate hi pricing aur options aapke saath coordinate karenge!",
+                    f"haan bhai! TG channels/alts available hain. CatVos {casual_status_hi} — aate hi catalog aur pricing directly share kar denge",
+                    f"yep Telegram channels ready hain. CatVos {casual_status_hi}, free hote hi sab discuss kar lena unse directly",
+                    f"haan Telegram channels ka fresh stock hai. CatVos aate hi details aur options bata denge — {casual_status_hi} abhi",
                 ]
             else:
                 replies = [
-                    f"Haan! WhatsApp aur Telegram dono ke accounts/channels available hain. CatVos aate hi rates aur options directly share karenge.",
-                    f"Yes, WP alts aur TG channels dono available hain stock mein. CatVos aate hi directly details discuss karenge!",
+                    f"haan bhai! WP aur TG dono available hain. CatVos {casual_status_hi} — aate hi directly rates aur options share kar denge",
+                    f"yep dono hain stock mein — WP alts bhi TG channels bhi. CatVos free hote hi details discuss kar lena directly",
                 ]
         else:
             if is_wp and not is_tg:
                 replies = [
-                    f"Yes! WhatsApp alts are available in stock. CatVos will share the full catalog and pricing with you directly as soon as he is online — {status_msg}",
-                    f"Yes, we have WhatsApp fresh accounts available. CatVos will coordinate the options and rates with you directly once he is back!",
+                    f"yeah! we got WP alts in stock. CatVos is {casual_status_en} but he'll hit you up with the full catalog and pricing directly once he's free. anything else?",
+                    f"yep, WhatsApp fresh accounts are available. CatVos will get you the details and options directly as soon as he's back — {casual_status_en}",
+                    f"yeah we have WP alts! CatVos is {casual_status_en}, he'll share the catalog and pricing directly once he's around",
                 ]
             elif is_tg and not is_wp:
                 replies = [
-                    f"Yes! Telegram channels and groups are available. CatVos will walk you through the catalog and rates directly as soon as he is online — {status_msg}",
-                    f"Yes, we have Telegram channels in stock. CatVos will discuss the specs and pricing with you directly once he is back!",
+                    f"yeah! Telegram channels are available. CatVos is {casual_status_en} but he'll walk you through the specs and pricing directly once he's free",
+                    f"yep we have TG channels in stock. CatVos will hit you up with the details directly as soon as he's back — {casual_status_en}",
                 ]
             else:
                 replies = [
-                    f"Yes! Both WhatsApp alts and Telegram channels are available. CatVos will share the full listing and rates with you directly as soon as he is online.",
-                    f"Yes, we have both WP accounts and TG channels in stock. CatVos will get you the details and options as soon as he is back!",
+                    f"yeah! got both WP alts and TG channels. CatVos is {casual_status_en} — he'll get you the full details on both once he's free",
+                    f"yep both available — WP accounts and TG channels. CatVos will share everything directly as soon as he's back!",
                 ]
         return random.choice(replies), "account_pricing"
 
+
     # Intent F: Video Editing / Graphics Design / "edt"
+    # NOTE: website/web development queries are intentionally EXCLUDED here — they are handled by Intent D.
     is_edit_query = (
         any(x in msg for x in ["edit", "editing", "edt", "video edit", "graphic design", "video", "graphics",
                                 "thumbnail", "logo", "banner", "intro", "outro",
@@ -291,29 +299,20 @@ def check_fast_path_query(message_text, status_mode="focus", chat_history=None, 
         if is_custom:
             if is_hinglish:
                 reply = (
-                    "Yes, we actively provide premium video editing and graphic design services.\n\n"
-                    "Customized requirements ke liye kindly wait kijiye. CatVos active hote hi aapse direct coordinate karenge aur project details discuss karenge.\n\n"
-                    "In the meantime, you can explore our style preview channel: @previewcom (telegram)"
+                    "haan bhai! video editing aur graphic design dono karte hain.\n\n"
+                    "custom work ke liye CatVos aate hi directly coordinate karenge — requirements yahan drop kar do aur wo personally discuss karenge.\n\n"
+                    "tab tak preview dekh lo: @previewcom (telegram)"
                 )
             else:
                 reply = (
-                    "Yes, we actively provide premium video editing and graphic design services.\n\n"
-                    "For customized edits or custom workflows, kindly wait. CatVos will connect with you directly to discuss custom requirements and your project brief once he is online.\n\n"
-                    "In the meantime, you can check our style preview channel: @previewcom (telegram)"
+                    "yeah we do video editing and graphic design!\n\n"
+                    "for custom work, CatVos will reach out directly to discuss your requirements and brief. drop your details here and he'll pick it up once he's free.\n\n"
+                    "in the meantime check out our preview channel: @previewcom (telegram)"
                 )
             return reply, "edit_custom"
         else:
             if is_hinglish:
                 reply = (
-                    "Yes, we actively provide premium video editing and graphic design services.\n\n"
-                    "Aap niche diye gaye link se humara preview channel visit kijiye aur wahan se koi bhi edit style select ya choose kar lijiye:\n"
-                    "👉 @previewcom (telegram)\n\n"
-                    "Agar customize edit chahiye, toh kindly wait kijiye. CatVos online aate hi aapse direct project brief discuss karenge."
-                )
-            else:
-                reply = (
-                    "Yes, we actively provide premium video editing and graphic design services.\n\n"
-                    "Please visit our preview channel using the link/button below to select or choose your preferred editing style:\n"
                     "👉 @previewcom (telegram)\n\n"
                     "If you require fully customized design/video work, kindly wait. CatVos will coordinate with you directly to discuss your project brief as soon as he is back online."
                 )
@@ -324,29 +323,31 @@ def check_fast_path_query(message_text, status_mode="focus", chat_history=None, 
     if is_dev_query:
         if is_hinglish:
             reply = (
-                "Main Coet hu, CatVos ka personal assistant. Is autonomous AI digital twin manager ko lead engineer shinichiro ne develop aur deploy kiya hai (telegram: @shinichirofr).\n\n"
-                "Agar aap bhi Coet ka access chahte hain ya apne account/business ke liye aisa powerful AI manager deploy karwana chahte hain, toh lead developer @shinichirofr se contact kijiye!"
+                "main Coet hu, CatVos ka banda — uski messages handle karta hu. mujhe shinichiro ne banaya hai, woh lead developer hain (telegram: @shinichirofr).\n\n"
+                "agar tujhe bhi kuch aisa chahiye apne account pe, toh seedha @shinichirofr se baat kar!"
             )
         else:
             reply = (
-                "I'm Coet, CatVos's manager. This autonomous AI digital twin manager is developed and deployed by the lead engineer shinichiro (telegram: @shinichirofr).\n\n"
-                "If you would like to purchase a commercial license, get access to Coet, or deploy this automated AI digital twin manager on your personal account, contact the lead developer @shinichirofr directly!"
+                "I'm Coet — CatVos's guy, I handle his messages. I was built by shinichiro, the lead developer (telegram: @shinichirofr).\n\n"
+                "if you want something like this set up on your account, hit up @shinichirofr directly!"
             )
         return reply, "developer_info"
 
-    # Intent C: Who are you / Identity / Presence check ("coet?", "u there?", etc.)
+    # Intent C: Who are you / Identity / Presence check
     if any(x in msg for x in ["tu kon", "tuu kon", "tu kaun", "tuu kaun", "who are you", "who is this", "naam kya", "your name",
                                "kya kam", "kya kaam", "kaam kya", "what do you do", "what services",
                                "coet", "u there", "you there", "hello?", "anyone", "koi hai", "koi h"]):
         if is_hinglish:
             replies = [
-                f"Haan main yahan hu! Main CatVos ka personal manager Coet hu. Unke business transactions, WhatsApp/Telegram accounts queries aur middleman deals handle karta hu. {status_msg} Bataiye kya kaam tha?",
-                f"Ji main Coet hu, CatVos ka manager! {status_msg} Kuch kaam tha toh yahan message chhod dijiye, main forward kar dunga."
+                f"haan yaar main yahan hu! main Coet hu — CatVos ka banda, uski messages handle karta hu jab wo busy hota hai. {casual_status_hi} abhi. kya kaam tha?",
+                f"ha bhai main hu! Coet — CatVos ka close associate. {casual_status_hi} abhi wo, main sambhal raha hu. bolo?",
+                f"present! main Coet hu, CatVos ka yaar. uske deals aur messages handle karta hu. kya chahiye tujhe?"
             ]
         else:
             replies = [
-                f"Yes, I'm here! I'm Coet, CatVos's executive manager. I handle his transactions, account stocks, and client communications. {status_msg} How can I help you?",
-                f"This is Coet, CatVos's business manager. I manage escrow deals, account sales, and communications. {status_msg} What can I do for you?"
+                f"yeah I'm here! I'm Coet — CatVos's guy, I handle his messages when he's busy. he's {casual_status_en}. what's up?",
+                f"yo, I'm here. Coet — I'm CatVos's close associate, handling things for him. he's {casual_status_en} rn. what do you need?",
+                f"yep! Coet here — I run CatVos's business stuff when he's away. he's {casual_status_en}. what can I help with?"
             ]
         return random.choice(replies), "identity"
 
@@ -358,42 +359,49 @@ def check_fast_path_query(message_text, status_mode="focus", chat_history=None, 
     is_offering = any(x in msg for x in ["deta", "offer", "karte", "provide", "provides", "do you", "service", "services", "selling", "karte ho", "milega", "available"])
     if is_service and is_offering:
         if is_webdev:
-            label = "website development"
+            label_en = "website development"
+            label_hi = "website development"
         elif is_design:
-            label = "graphic design and creative services"
+            label_en = "graphic design and creative work"
+            label_hi = "graphic design aur creative work"
         elif "middleman" in msg or "escrow" in msg or " mm " in msg:
-            label = "middleman/escrow services"
+            label_en = "middleman/escrow deals"
+            label_hi = "middleman/escrow deals"
         else:
-            label = "services"
+            label_en = "those services"
+            label_hi = "woh services"
 
         if is_hinglish:
             replies = [
-                f"Haan! Hum {label} actively provide karte hain. CatVos aate hi details aur pricing aapke saath direct discuss karenge — {status_msg} Tab tak requirements yahan drop kar dijiye!",
-                f"Yes, {label} available hai. Jaise hi CatVos online aayenge, aapke project ke baare mein sab discuss kar denge. Requirements yahan leave kar dijiye!"
+                f"haan bhai! {label_hi} karte hain. CatVos {casual_status_hi} — aate hi directly requirements aur pricing discuss kar lena. tab tak details yahan drop kar do!",
+                f"yep {label_hi} available hai. CatVos free hote hi directly baat karte hain tere saath — {casual_status_hi} abhi. kuch aur batao?"
             ]
         else:
             replies = [
-                f"Yes! We actively provide {label}. CatVos will connect with you directly to discuss your requirements and pricing — {status_msg} Please leave your details here in the meantime!",
-                f"Yes, we offer {label}. CatVos will reach out to discuss your project in detail as soon as he is back online. Feel free to drop your requirements here!"
+                f"yeah we do {label_en}! CatVos is {casual_status_en} but he'll reach out directly to discuss your requirements and pricing once he's back. drop your details here!",
+                f"yep, we offer {label_en}. CatVos will hit you up directly to discuss your project once he's free — he's {casual_status_en} rn. anything else?"
             ]
         return random.choice(replies), "services_check"
 
 
     # Intent E: Basic Greetings
-    if any(w in msg.split() for w in ["hi", "hello", "hey", "yo", "hii", "hiii", "heyy", "yoo"]) or any(x in msg for x in ["kya hal", "kya chal", "how are you", "kya haal"]):
+    if any(w in msg.split() for w in ["hi", "hello", "hey", "yo", "hii", "hiii", "heyy", "yoo", "sup", "wassup"]) or any(x in msg for x in ["kya hal", "kya chal", "how are you", "kya haal", "kese ho"]):
         if is_hinglish:
             replies = [
-                f"Hey! Sab badhiya. Main CatVos ka manager Coet hu. {status_msg} Bataiye, kya kaam tha?",
-                f"Hello! Sab safe and sound. CatVos ka manager Coet here. {status_msg} Kuch urgent transaction/deal setup tha?"
+                f"yoo! CatVos {casual_status_hi} toh main hu Coet — uski side se. kya kaam tha?",
+                f"bhai! main Coet hu, CatVos {casual_status_hi} abhi. kuch kaam tha toh batao!",
+                f"hey! CatVos {casual_status_hi}, main sambhal raha hu — Coet. kya chahiye?",
             ]
         else:
             replies = [
-                f"Hello there! I'm Coet, CatVos's manager. {status_msg} How can I assist you today?",
-                f"Hey! Coet here, CatVos's manager. {status_msg} Leave your message and we'll address it right away."
+                f"hey! CatVos is {casual_status_en}, I'm Coet — I got his messages. what's up?",
+                f"yo! I'm Coet, CatVos's guy — he's {casual_status_en} rn. what do you need?",
+                f"hey there! Coet here, handling things for CatVos — he's {casual_status_en}. what's good?",
             ]
         return random.choice(replies), "greeting"
 
     return None
+
 
 # ─────────────────────────────────────────────────────────────
 # RULE-BASED FALLBACK
@@ -573,116 +581,97 @@ def generate_analysis_and_response(message_text, sender_info, chat_history, stat
     contact_flow = " -> ".join(contact_sequence)
 
     # Load settings
-    tone_profile          = db.get_setting("tone_profile", "concise")
+    tone_profile           = db.get_setting("tone_profile", "concise")
     smart_hinglish_enabled = db.get_setting("smart_hinglish", "1") == "1"
-    knowledge_base        = db.get_setting("knowledge_base", "")
-    personality           = custom_rules or (
-        "You are Coet, CatVos's elite executive assistant and manager. "
-        "Keep replies warm, professional, respectful, concise, and human-like. "
-        "Never mention you are an AI or Gemini."
-    )
+    knowledge_base         = db.get_setting("knowledge_base", "")
+    personality            = custom_rules or ""
 
-    tone_desc = (
-        "Keep replies strictly to 1 sentence maximum. Be extremely concise, direct, and short."
-        if tone_profile == "concise"
-        else "Provide a polished, 2-to-3 sentence response that answers professionally."
-    )
-
-    status_explanations = {
-        "online":   "Owner is online but inactive. State CatVos is busy in another deal.",
-        "busy":     "Owner is in a high-priority task/meeting.",
-        "sleeping": "Owner is sleeping. CatVos will see this in the morning.",
-        "travel":   "Owner is traveling with limited access.",
-        "focus":    "Owner is in deep work focus mode.",
-        "vacation": "Owner is on vacation. Slow responses expected.",
+    # Short casual status for the Gemini prompt
+    casual_status_map_en = {
+        "sleeping": "asleep rn, will be back in the morning",
+        "busy": "locked in a deal rn",
+        "focus": "heads down in deep work rn",
+        "travel": "traveling rn with limited signal",
+        "online": "occupied in another chat rn",
+        "vacation": "on vacation rn",
     }
-    status_desc = status_explanations.get(status_mode.lower(), f"Owner is in {status_mode} mode.")
+    status_context = casual_status_map_en.get(status_mode.lower(), "away rn")
 
     # Dynamic introduction rules
     if has_introduced and is_followup:
         intro_rule = (
-            "CRITICAL: You have ALREADY introduced yourself as Coet in this conversation. "
-            "Do NOT say 'I am Coet', 'This is Coet', 'Hi [Name]', or repeat your name/role. "
-            "Speak directly and naturally as his manager — just reply to what they said."
+            "You've already introduced yourself in this conversation. "
+            "Do NOT say your name again or re-introduce yourself. "
+            "Just reply naturally like you're mid-conversation with someone you already know."
         )
     elif has_introduced:
-        intro_rule = (
-            "You have introduced yourself before. Only re-introduce if they explicitly ask 'who are you?'. "
-            "Otherwise speak naturally without repeating your name."
-        )
+        intro_rule = "You've introduced yourself before. Only say your name if they explicitly ask 'who are you'."
     else:
         intro_rule = (
-            "This appears to be a first contact. Introduce yourself briefly as Coet, CatVos's manager, "
-            "then address the message."
+            "First message from this person. Briefly mention you're Coet (CatVos's guy), "
+            "then immediately address what they said."
         )
 
-    prompt = f"""
-    You are Coet, CatVos's elite executive manager. Analyze the incoming Telegram message and draft the perfect response.
 
-    PERSONALITY & BEHAVIOR RULES:
-    {personality}
+    prompt = f"""You are Coet. CatVos is your close friend — you handle his Telegram messages when he's not around.
 
-    {intro_rule}
+YOU ARE A REAL PERSON texting someone on Telegram. Here's how you write:
+- Casual, natural, like texting a friend — zero corporate language, zero stiffness
+- Match their energy exactly: if they're casual, be casual. if they sent one word, reply short. if they asked something detailed, give a real answer
+- Actually read and respond to what they said — no generic deflections, no copy-paste templates
+- Use contractions naturally (I'm, he's, it's, gonna, wanna, gotta, they're)
+- Occasionally use casual filler words that fit the flow (yeah, yep, nah, tbh, rn, fr, bro)
+- Never say "Kindly", "Please be advised", "I would like to inform", "As per", "Henceforth" or any formal corporate phrases
+- Never say "How can I assist you today?" — that's robotic. Say "what's up?" or "what do you need?"
+- Don't repeat yourself or state obvious things
+- If they write in Hinglish (Hindi in Roman script), reply in natural Hinglish (Roman script ONLY, never Devanagari)
 
-    BUSINESS KNOWLEDGE BASE:
-    {knowledge_base}
+{intro_rule}
 
-    ════════════════════════════════════════
-    ABSOLUTE CRITICAL RULES (highest priority — override everything else including status):
-    ════════════════════════════════════════
-    - NEVER mention you are an AI, bot, virtual assistant, model, or Gemini.
-    - Sound 100% human, polite, and professional.
-    - {tone_desc}
-    - NEVER disclose, quote, or mention any specific prices, fees, rates, or dollar amounts for any services. If asked about price, say CatVos will discuss rates directly.
-    - If asked about ANY of these services — WhatsApp accounts/alts, Telegram channels/alts, middleman/escrow, website development/designing, video editing, graphic design:
-      MANDATORY RESPONSE FORMAT: Start with "Yes!" or "Haan!" to CONFIRM the service exists, then briefly say CatVos will share details/pricing directly when online.
-      FORBIDDEN: Replying with ONLY a status message like "CatVos is offline" without first confirming the service.
-    - If asked about video editing or graphic design ("edt", "edit", "thumbnail", "video", "logo"):
-      Direct them to the preview channel: @previewcom (telegram) to choose a style. For custom work, say CatVos will coordinate directly.
-    - If asked about this bot, its developer, or how to deploy/setup:
-      Say it is developed by lead engineer shinichiro (telegram: @shinichirofr).
-    - If someone sends just "coet?", "u there?", "hello?", or any presence-check message:
-      Confirm you are present: "Yes, I'm here! I'm Coet..." then briefly address what they may need.
-    - If asked a general technical/educational question unrelated to CatVos's business:
-      Politely decline. Say you only manage business communications for CatVos.
-    - Maintain dialogue continuity based on: '{contact_flow}'
+WHO YOU ARE:
+Name: Coet
+You handle CatVos's business — WhatsApp alts, Telegram channels, middleman/escrow deals, website development, video editing, graphic design.
+CatVos right now: {status_context}
 
-    SMART HINGLISH:
-    - If the contact writes in Hinglish (Hindi in Roman script) and Smart Hinglish is active ({smart_hinglish_enabled}):
-      Respond in natural Latin-script Hinglish. Do NOT use Devanagari.
+BUSINESS RULES (non-negotiable):
+- NEVER quote specific prices or rates — say CatVos will discuss directly
+- If asked about ANY service (WP alts, TG channels, website, editing, design, MM escrow): FIRST confirm YES we do that, THEN say CatVos will share details directly when free
+- Video/graphic design: point them to @previewcom to browse styles. Custom = CatVos coordinates directly
+- Questions about this system/bot/developer: shinichiro built it (telegram: @shinichirofr)
+- You are NOT a bot or AI — you're a person. Never break this
+- DO NOT reply with only a status message. Always engage with what they actually said first
 
-    OWNER STATUS:
-    - CatVos current state: {status_mode.upper()}
-    - Context: {status_desc}
-    - IMPORTANT: Status context is background info only. Do NOT let it override service confirmations — always confirm first, then mention status.
+{f'EXTRA PERSONALITY RULES:\n{personality}' if personality else ''}
 
-    SENDER:
-    - Name: {sender_info.get('first_name', '')} {sender_info.get('last_name', '')}
-    - Category: {sender_info.get('category', 'unknown')}
-    - Notes: {contact_notes}
+BUSINESS KNOWLEDGE BASE:
+{knowledge_base}
 
-    CONVERSATION HISTORY:
-    {history_str}
+CONVERSATION SO FAR:
+{history_str}
 
-    INCOMING MESSAGE:
-    "{message_text}"
+THEY JUST SENT: "{message_text}"
 
-    OUTPUT JSON ONLY:
-    {{
-        "sentiment": "happiness/frustration/anger/sadness/excitement/urgency/neutral/confusion",
-        "priority": "critical/important/normal/low",
-        "suggested_category": "family/friend/client/business_partner/vip/team_member/unknown",
-        "relationship_insight": "brief action item or empty string",
-        "language": "english/hinglish/hindi/other",
-        "tone": "casual/formal/angry/impatient/polite/urgent",
-        "suggested_personality": "Casual Friend/Premium Executive/Firm & Direct/Empathetic Support/Warm & Helpful",
-        "draft_reply": "the drafted auto-reply string",
-        "schedule_reminder": {{
-            "task": "short task or null",
-            "due_time": "relative date or null"
-        }}
+Write a reply that sounds like a real person texted it. Read what they said, understand it, respond to it specifically.
+No templates. No corporate language. No robotic patterns. Just a natural, human reply.
+
+OUTPUT JSON ONLY:
+{{
+    "sentiment": "happiness/frustration/anger/sadness/excitement/urgency/neutral/confusion",
+    "priority": "critical/important/normal/low",
+    "suggested_category": "family/friend/client/business_partner/vip/team_member/unknown",
+    "relationship_insight": "brief action item or empty string",
+    "language": "english/hinglish/hindi/other",
+    "tone": "casual/formal/angry/impatient/polite/urgent",
+    "suggested_personality": "Casual Friend/Premium Executive/Firm & Direct/Empathetic Support/Warm & Helpful",
+    "draft_reply": "the reply — sounds like a real person texted it",
+    "schedule_reminder": {{
+        "task": "short task or null",
+        "due_time": "relative date or null"
     }}
-    """
+}}
+"""
+
+
 
 
     try:
