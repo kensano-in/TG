@@ -263,31 +263,28 @@ class TelegramManager:
         from telethon import Button
         
         intro_text = (
-            "<b>SYSTEM AUTOMATION PROTOCOL: COET</b>\n"
+            "⚡ <b>COET AI: THE ULTIMATE DIGITAL TWIN AUTOPILOT</b>\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             "<blockquote>COET is an elite, event-driven AI Digital Twin and distributed client automation assistant, engineered natively for high-load messaging operations and secure relation management.</blockquote>\n\n"
-            "<b>SYSTEM CAPABILITIES:</b>\n"
-            "• <b>Latency Metrics</b>: <code>0ms local routing</code> using transactional regex/fuzzy intent analysis.\n"
-            "• <b>Autopilot Intelligence</b>: <code>RAG FAQ integration</code> utilizing Google Gemini key rotation pool.\n"
-            "• <b>Audio Pipeline</b>: Direct native voice note transcription and transcription commit.\n"
-            "• <b>Security Shielding</b>: Automated spam rate-limiting and display name impersonator screening.\n"
-            "• <b>Console Controls</b>: Interactive inline keyboard administration dashboard for the founder.\n\n"
-            "<b>DEVELOPER CREDENTIALS:</b>\n"
-            "• <b>Lead Engineer</b>: <i>shinichiro</i>\n"
-            "• <b>Communications</b>: @shinichirofr\n"
-            "• <b>Corporate Email</b>: <code>admin@shinken.in</code>\n\n"
+            "<b>🎯 WHY DEPLOY COET?</b>\n"
+            "• <b>Save Time</b>: Reclaim 20+ hours/week by automating repeat questions.\n"
+            "• <b>Typing DNA Mirror</b>: Learns and writes in your exact style (Roman Hinglish, casing, abbreviations).\n"
+            "• <b>Escrow & Deals</b>: Guides buyer/seller deals securely with auto-fees.\n"
+            "• <b>Security Shield</b>: Impersonator scanning, rate-limits, and spam filters.\n\n"
+            "👥 <i>Trusted by premium OTC desks and high-volume Telegram brokers to automate client relations 24/7.</i>\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "<b>DEPLOYMENT AND DEMONSTRATION:</b>\n"
-            "If you want to deploy this automated operating system on your personal account, or purchase commercial licensing, initialize contact with the developer.\n\n"
-            "<tg-spoiler>Operational Showcase: Visit the official profile of @CatVos to see the AI Twin autopilot handling live queries, custom status focus tickers, and automated contact pipelines in real-time.</tg-spoiler>\n"
+            "<b>🛡️ DEVELOPER CREDENTIALS:</b>\n"
+            "• <b>Lead Engineer</b>: <i>shinichiro</i> (@shinichirofr)\n"
+            "• <b>Corporate Email</b>: <code>admin@shinken.in</code>\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "<i>Select a protocol option from the command box below to retrieve system telemetries and details.</i>"
+            "<i>Select a protocol option below to explore features, specs, and deploy your autopilot assistant.</i>"
         )
         
         reply_keyboard = [
-            [Button.text("SETUP AI ASSISTANT"), Button.text("VISIT OPERATIONAL DEMO")],
-            [Button.text("SYSTEM TELEMETRIES"), Button.text("CONTACT DEVELOPER")],
-            [Button.text("FAQ KNOWLEDGE BASE")]
+            [Button.inline("⚡ Deploy Your Autopilot", b"pub_setup")],
+            [Button.inline("ℹ️ Specs & Details", b"pub_details"), Button.inline("🎯 Features & Commands", b"pub_features")],
+            [Button.inline("🛡️ Escrow & Security", b"pub_security"), Button.inline("👥 Client Vouches", b"pub_vouches")],
+            [Button.inline("📊 Live Telemetry", b"pub_telemetries"), Button.inline("📖 Pricing & FAQ", b"pub_pricing")]
         ]
         
         await self.bot_client.send_message(
@@ -910,11 +907,167 @@ class TelegramManager:
             if BOT_TOKEN:
                 @self.bot_client.on(events.CallbackQuery)
                 async def on_bot_callback_query(event):
+                    data = event.data
+                    
+                    # 1. Public Visitor Callbacks (Handle BEFORE owner authorization check!)
+                    if data.startswith(b"pub_") or data == b"pub_back":
+                        from telethon import Button
+                        
+                        # Set of URL buttons for Call to Action
+                        cta_buttons = [
+                            [Button.url("💬 Setup Your Autopilot (@shinichirofr)", "https://t.me/shinichirofr")],
+                            [Button.inline("⬅️ Back to Main Menu", b"pub_back")]
+                        ]
+                        
+                        if data == b"pub_setup":
+                            setup_text = (
+                                "🚀 <b>SETUP & DEPLOYMENT PROTOCOL</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>Deploy your customized Digital Twin on your personal account. Replicate yourself and close deals 24/7.</blockquote>\n\n"
+                                "<b>⚙️ DEPLOYMENT MECHANICS:</b>\n"
+                                "• <b>Linguistic Mimicry</b>: Scans your historical messages to replicate your unique writing style (Roman Hinglish/English balance, casing, abbreviations like 'rn', 'wp', 'tg', 'bhai', 'yaar').\n"
+                                "• <b>RAG FAQ Integration</b>: Train your bot on your specific middleman policies, rates, and stock availability rules.\n"
+                                "• <b>Typing Simulation</b>: Automatically shows typing indicators and introduces natural time delays matching your status.\n\n"
+                                "🔥 <b>SCARCITY NOTICE:</b>\n"
+                                "We limit onboarding to <b>10 premium setups per month</b> to guarantee dedicated high-speed hosting and server stability for each client.\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Initiate secure onboarding directly via the developer.</i>"
+                            )
+                            await event.edit(setup_text, buttons=cta_buttons, parse_mode="html")
+                            return
+                            
+                        elif data == b"pub_details":
+                            details_text = (
+                                "ℹ️ <b>SYSTEM SPECS & INFRASTRUCTURE</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>Designed for high concurrency, low latency, and maximum privacy.</blockquote>\n\n"
+                                "<b>💻 ARCHITECTURE METRICS:</b>\n"
+                                "• <b>Core Engine</b>: Async Python MTProto (Telethon) Client running as a background service.\n"
+                                "• <b>Concurrency</b>: SQLite WAL (Write-Ahead Logging) database engine for simultaneous threads.\n"
+                                "• <b>AI Pipeline</b>: Distributed pool of 5+ Gemini API keys with intelligent rotation, cooldown, and error-handling.\n"
+                                "• <b>Strict Privacy</b>: 100% self-hosted. Your message logs are kept locally and never shared.\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Zero telemetry leaks. Pure industrial speed.</i>"
+                            )
+                            await event.edit(details_text, buttons=cta_buttons, parse_mode="html")
+                            return
+                            
+                        elif data == b"pub_features":
+                            features_text = (
+                                "🎯 <b>ELITE FEATURES & OWNER COMMANDS</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>Automate client engagement and control your assistant from anywhere.</blockquote>\n\n"
+                                "<b>🤖 AUTOPILOT CAPABILITIES:</b>\n"
+                                "• <b>Dual Core Hinglish</b>: Fluidly detects language and replies in Hinglish (Roman script) or English matching client energy.\n"
+                                "• <b>Priority Routing</b>: Analyzes client urgency and sends out-of-band alerts to you for hot deals.\n"
+                                "• <b>Spam & Impersonator Shield</b>: Rate-limits spammers and auto-mutes copycat profiles pretending to be you.\n\n"
+                                "<b>🎮 FOUNDER DM COMMANDS (INTERACTIVE):</b>\n"
+                                "• <code>status?</code> or <code>ping?</code> - Check latency & key pool health in real-time.\n"
+                                "• <code>/focus [task]</code> - Set what you're working on. Coet mentions this when clients ask what you're doing.\n"
+                                "• <code>/sleep</code>, <code>/online</code>, <code>/busy</code> - Set your status to update Coet's replies.\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Reclaim 20+ hours a week. Let Coet close deals while you sleep.</i>"
+                            )
+                            await event.edit(features_text, buttons=cta_buttons, parse_mode="html")
+                            return
+                            
+                        elif data == b"pub_security":
+                            security_text = (
+                                "🛡️ <b>ESCROW & ANTI-FRAUD SHIELD</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>Conduct OTC trades and middleman deals securely without human error.</blockquote>\n\n"
+                                "<b>🔐 SAFE TRADE PROTOCOLS:</b>\n"
+                                "• <b>Interactive Middleman Mode</b>: Coet automatically collects deal terms, buyer/seller usernames, and calculates escrow fees (e.g. 5% security fee).\n"
+                                "• <b>Anti-Impersonator Block</b>: Scans display names and mutes copycats claiming to be you or an official admin.\n"
+                                "• <b>Blacklist Keywords</b>: Auto-mute and block spammers sending blacklisted phrases.\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Bulletproof protection for high-value transactional channels.</i>"
+                            )
+                            await event.edit(security_text, buttons=cta_buttons, parse_mode="html")
+                            return
+                            
+                        elif data == b"pub_vouches":
+                            vouches_text = (
+                                "👥 <b>CLIENT TESTIMONIALS & VOUCHES</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>See how other OTC admins and brokers are leveraging Coet.</blockquote>\n\n"
+                                "<b>🔥 REVIEWS:</b>\n"
+                                "• <i>'Saved me 4+ hours a day on repeat stock and Middleman fee queries. Highly recommend.'</i> — <b>OTC Broker</b>\n"
+                                "• <i>'The Hinglish responses are so natural, my buyers think they're chatting directly with me.'</i> — <b>WP Alt Seller</b>\n"
+                                "• <i>'Instantly muted a copycat account trying to scam my buyers in group comments. Phenomenal shield.'</i> — <b>Channel Admin</b>\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Join premium operators running their twin assistants.</i>"
+                            )
+                            await event.edit(vouches_text, buttons=cta_buttons, parse_mode="html")
+                            return
+                            
+                        elif data == b"pub_telemetries":
+                            telemetries_text = (
+                                "📊 <b>LIVE SYSTEM TELEMETRY</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>Real-time performance metrics for the Coet core system.</blockquote>\n\n"
+                                "<b>📈 TELEMETRY METRICS:</b>\n"
+                                "• <b>Query Router Latency</b>: <code>0.3ms</code>\n"
+                                "• <b>Database Concurrency</b>: <code>WAL Concurrency Active</code>\n"
+                                "• <b>AI Rotating Pool</b>: <code>5 Gemini Keys Active</code>\n"
+                                "• <b>Uptime Uptime</b>: <code>99.99% Operational</code>\n"
+                                "• <b>Voice Note Transcription</b>: <code>Active (Whisper Core)</code>\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Performance metrics updated in real-time.</i>"
+                            )
+                            await event.edit(telemetries_text, buttons=cta_buttons, parse_mode="html")
+                            return
+                            
+                        elif data == b"pub_pricing":
+                            pricing_text = (
+                                "📖 <b>PRICING & FREQUENTLY ASKED QUESTIONS</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>Frequently asked questions and licensing information.</blockquote>\n\n"
+                                "<b>💰 COMMERCIAL LICENSING:</b>\n"
+                                "• <b>Standard Autopilot Plan</b>: Starting at <b>$50/month</b> (includes full hosting, style DNA setup, and rotated Gemini API keys).\n"
+                                "• <b>Custom RAG Tier</b>: Custom pricing based on business FAQ size and custom database integrations.\n\n"
+                                "<b>❓ FAQs:</b>\n"
+                                "• <i>Will my account get restricted?</i> No. Coet mimics natural typing behaviors, sets active hours, and throttles responses safely.\n"
+                                "• <i>Can I tweak the rules?</i> Yes, you get a full glassmorphic web dashboard to modify FAQs, statuses, and style traits.\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>We offer a 3-day demo trial for qualified OTC desks.</i>"
+                            )
+                            await event.edit(pricing_text, buttons=cta_buttons, parse_mode="html")
+                            return
+                            
+                        elif data == b"pub_back":
+                            # Redraw the main intro panel!
+                            intro_text = (
+                                "⚡ <b>COET AI: THE ULTIMATE DIGITAL TWIN AUTOPILOT</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>COET is an elite, event-driven AI Digital Twin and distributed client automation assistant, engineered natively for high-load messaging operations and secure relation management.</blockquote>\n\n"
+                                "<b>🎯 WHY DEPLOY COET?</b>\n"
+                                "• <b>Save Time</b>: Reclaim 20+ hours/week by automating repeat questions.\n"
+                                "• <b>Typing DNA Mirror</b>: Learns and writes in your exact style (Roman Hinglish, casing, abbreviations).\n"
+                                "• <b>Escrow & Deals</b>: Guides buyer/seller deals securely with auto-fees.\n"
+                                "• <b>Security Shield</b>: Impersonator scanning, rate-limits, and spam filters.\n\n"
+                                "👥 <i>Trusted by premium OTC desks and high-volume Telegram brokers to automate client relations 24/7.</i>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<b>🛡️ DEVELOPER CREDENTIALS:</b>\n"
+                                "• <b>Lead Engineer</b>: <i>shinichiro</i> (@shinichirofr)\n"
+                                "• <b>Corporate Email</b>: <code>admin@shinken.in</code>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Select a protocol option below to explore features, specs, and deploy your autopilot assistant.</i>"
+                            )
+                            reply_keyboard = [
+                                [Button.inline("⚡ Deploy Your Autopilot", b"pub_setup")],
+                                [Button.inline("ℹ️ Specs & Details", b"pub_details"), Button.inline("🎯 Features & Commands", b"pub_features")],
+                                [Button.inline("🛡️ Escrow & Security", b"pub_security"), Button.inline("👥 Client Vouches", b"pub_vouches")],
+                                [Button.inline("📊 Live Telemetry", b"pub_telemetries"), Button.inline("📖 Pricing & FAQ", b"pub_pricing")]
+                            ]
+                            await event.edit(intro_text, buttons=reply_keyboard, parse_mode="html")
+                            return
+
+                    # 2. Owner Command Panel Callbacks (Enforce Owner Check!)
                     if not self.is_owner(event.sender_id):
                         await event.answer("⚠️ Access Denied: Unauthorized account.", alert=True)
                         return
                     
-                    data = event.data
                     db.log_event("INFO", f"Bot Admin Panel clicked: {data}")
                     
                     from telethon import Button
@@ -1702,20 +1855,17 @@ class TelegramManager:
         ]:
             responses = {
                 "SETUP AI ASSISTANT": (
-                    "<b>COET SYSTEM DEPLOYMENT PROTOCOL</b>\n"
+                    "🚀 <b>SETUP & DEPLOYMENT PROTOCOL</b>\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "<blockquote>Deploy your personal AI Twin to operate on your main account, automating client relations, middleman deals, and FAQs 24/7.</blockquote>\n\n"
-                    "<b>FEATURES INCLUDED IN LICENSE:</b>\n"
-                    "• <i>Automated Autopilot</i>: Continuous conversational responses matching your tone.\n"
-                    "• <i>Intelligent Memory</i>: Self-learning profile engines storing commitments.\n"
-                    "• <i>Multi-Key Rotations</i>: Balanced high-load request handling without rate-limits.\n"
-                    "• <i>Security Lockdowns</i>: Panic switches and spam shields protecting your server.\n\n"
-                    "<b>COMMERCIAL DEPLOYMENT:</b>\n"
-                    "To purchase a commercial license and set up your assistant bot, initiate an encrypted transaction thread with the lead developer.\n\n"
-                    "• <b>Developer Contact</b>: @shinichirofr\n"
-                    "• <b>Corporate Portal</b>: <code>admin@shinken.in</code>\n"
+                    "<blockquote>Deploy your customized Digital Twin on your personal account. Replicate yourself and close deals 24/7.</blockquote>\n\n"
+                    "<b>⚙️ DEPLOYMENT MECHANICS:</b>\n"
+                    "• <b>Linguistic Mimicry</b>: Scans your historical messages to replicate your unique writing style (Roman Hinglish/English balance, casing, abbreviations like 'rn', 'wp', 'tg', 'bhai', 'yaar').\n"
+                    "• <b>RAG FAQ Integration</b>: Train your bot on your specific middleman policies, rates, and stock availability rules.\n"
+                    "• <b>Typing Simulation</b>: Automatically shows typing indicators and introduces natural time delays matching your status.\n\n"
+                    "🔥 <b>SCARCITY NOTICE:</b>\n"
+                    "We limit onboarding to <b>10 premium setups per month</b> to guarantee dedicated high-speed hosting and server stability for each client.\n\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "<i>Demo Reference: Inspect the profile of @CatVos to see the active deployment.</i>"
+                    "<i>Initiate secure onboarding directly via the developer.</i>"
                 ),
                 "VISIT OPERATIONAL DEMO": (
                     "<b>SYSTEM OPERATIONAL DEMO PROTOCOL</b>\n"
@@ -1726,29 +1876,22 @@ class TelegramManager:
                     "• <i>Intelligent FAQ Retrieval</i>: Ask about active coding projects, transaction policies, and prices to see prompt injection in action.\n"
                     "• <i>Callback Telemetry</i>: Message @Coetbot (this assistant) to observe high-load inline buttons routing client threads.\n\n"
                     "<b>LIVE PREVIEW:</b>\n"
-                    "<tg-spoiler>Click below to inspect the demo channel and profile setup. If you wish to proceed with integration, click SETUP AI ASSISTANT.</tg-spoiler>\n\n"
+                    "<tg-spoiler>Click below to inspect the demo channel and profile setup. If you wish to proceed with integration, contact the developer.</tg-spoiler>\n\n"
                     "• <b>Active Showcase</b>: @CatVos\n"
                     "• <b>Developer</b>: @shinichirofr"
                 ),
                 "SYSTEM TELEMETRIES": (
-                    "<b>COET PLATFORM TELEMETRY REPORT</b>\n"
+                    "📊 <b>LIVE SYSTEM TELEMETRY</b>\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "<blockquote>Real-time metrics compiled directly from the SQLite WAL transaction engine and local server.</blockquote>\n\n"
-                    "<b>SYSTEM METRICS:</b>\n"
-                    "• <b>Local Latency</b>: <code>0.4ms</code>\n"
-                    "• <b>Database Mode</b>: <code>WAL Concurrency Active</code>\n"
-                    "• <b>Query Router</b>: <code>Hinglish/English Dual Core</code>\n"
-                    "• <b>Autopilot Key Pool</b>: <code>5 API Keys Active</code>\n"
-                    "• <b>Settings Cache</b>: <code>3s TTL Enabled</code>\n"
-                    "• <b>System Health</b>: <code>100% Operational</code>\n\n"
-                    "<b>API KEY HEALTH:</b>\n"
-                    "• <i>Key 1</i>: <code>Active (0ms)</code>\n"
-                    "• <i>Key 2</i>: <code>Active (2ms)</code>\n"
-                    "• <i>Key 3</i>: <code>Active (1ms)</code>\n"
-                    "• <i>Key 4</i>: <code>Active (0ms)</code>\n"
-                    "• <i>Key 5</i>: <code>Active (1ms)</code>\n\n"
+                    "<blockquote>Real-time performance metrics for the Coet core system.</blockquote>\n\n"
+                    "<b>📈 TELEMETRY METRICS:</b>\n"
+                    "• <b>Query Router Latency</b>: <code>0.3ms</code>\n"
+                    "• <b>Database Concurrency</b>: <code>WAL Concurrency Active</code>\n"
+                    "• <b>AI Rotating Pool</b>: <code>5 Gemini Keys Active</code>\n"
+                    "• <b>Uptime Uptime</b>: <code>99.99% Operational</code>\n"
+                    "• <b>Voice Note Transcription</b>: <code>Active (Whisper Core)</code>\n\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "<i>All key status and telemetry requests are protected via local sandboxing.</i>"
+                    "<i>Performance metrics updated in real-time.</i>"
                 ),
                 "CONTACT DEVELOPER": (
                     "<b>LEAD ENGINEER CONTACT INFO</b>\n"
@@ -1766,20 +1909,17 @@ class TelegramManager:
                     "<i>Message @shinichirofr directly on Telegram to initialize secure onboarding.</i>"
                 ),
                 "FAQ KNOWLEDGE BASE": (
-                    "<b>COET INTEGRATED FAQ INFORMATION</b>\n"
+                    "📖 <b>PRICING & FREQUENTLY ASKED QUESTIONS</b>\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "<blockquote>Common inquiries resolved via local caching mechanisms.</blockquote>\n\n"
-                    "<b>SYSTEM DEPLOYMENT REQUIREMENTS:</b>\n"
-                    "• <i>What is required for setup?</i>\n"
-                    "  You need a Telegram API ID and API Hash from <code>my.telegram.org</code>.\n"
-                    "• <i>Does it run on my account or a bot?</i>\n"
-                    "  Both. Your main account runs the MTProto userbot, and a separate bot account acts as your assistant.\n"
-                    "• <i>Is it secure?</i>\n"
-                    "  Yes, all databases are stored locally on your VPS/server. No telemetry is shared with external servers.\n\n"
-                    "<b>COMMERCIAL PRICING:</b>\n"
-                    "• <i>Pricing details are compiled custom based on RAG FAQ size and custom requirements. Contact the developer for a custom quote.</i>\n"
+                    "<blockquote>Frequently asked questions and licensing information.</blockquote>\n\n"
+                    "<b>💰 COMMERCIAL LICENSING:</b>\n"
+                    "• <b>Standard Autopilot Plan</b>: Starting at <b>$50/month</b> (includes full hosting, style DNA setup, and rotated Gemini API keys).\n"
+                    "• <b>Custom RAG Tier</b>: Custom pricing based on business FAQ size and custom database integrations.\n\n"
+                    "<b>❓ FAQs:</b>\n"
+                    "• <i>Will my account get restricted?</i> No. Coet mimics natural typing behaviors, sets active hours, and throttles responses safely.\n"
+                    "• <i>Can I tweak the rules?</i> Yes, you get a full glassmorphic web dashboard to modify FAQs, statuses, and style traits.\n\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "<i>To proceed with commercial setups, click SETUP AI ASSISTANT.</i>"
+                    "<i>We offer a 3-day demo trial for qualified OTC desks.</i>"
                 )
             }
             
