@@ -3,9 +3,11 @@ import os
 import time
 from datetime import datetime
 from telethon import TelegramClient, events, functions, types
+from telethon.sessions import StringSession
 from telethon.errors import SessionPasswordNeededError
 from dotenv import load_dotenv
 import requests
+
 
 import db
 import ai_engine
@@ -24,18 +26,27 @@ else:
 
 class TelegramManager:
     def __init__(self):
+        # Load persisted session strings from database (survives Render redeploys)
+        userbot_session_str = db.get_setting("telegram_session_string", "")
+        bot_session_str = db.get_setting("telegram_bot_session_string", "")
+
+        self.client = TelegramClient(
+            StringSession(userbot_session_str), API_ID, API_HASH
+        )
+        self.bot_client = TelegramClient(
+            StringSession(bot_session_str), API_ID, API_HASH
+        )
+        # Keep file paths for backward compat (not used for session storage anymore)
         self.session_path = os.path.join(os.path.dirname(__file__), "verlyn_assistant")
-        self.client = TelegramClient(self.session_path, API_ID, API_HASH)
         self.bot_session_path = os.path.join(os.path.dirname(__file__), "verlyn_bot_session")
-        self.bot_client = TelegramClient(self.bot_session_path, API_ID, API_HASH)
         self.phone_code_hash = None
         self.phone = PHONE
         self.is_running = False
-        self.websocket_clients = set() # For live dashboard streaming
-        self.assistant_sent_message_ids = set() # Track programmatically sent bot messages to avoid owner trigger loops
-        self.flood_trackers = {} # Track message timestamps for anti-spam flood control
+        self.websocket_clients = set()
+        self.assistant_sent_message_ids = set()
+        self.flood_trackers = {}
         self.me_id = None
-        
+
     async def connect(self):
         if not self.client.is_connected():
             await self.client.connect()
@@ -48,8 +59,11 @@ class TelegramManager:
                 if me:
                     self.me_id = me.id
                     db.log_event("INFO", f"Telegram userbot me_id set dynamically to {self.me_id}")
+                    # Persist the session string so it survives future Render redeploys
+                    self._save_session_to_db()
             except Exception as e:
                 db.log_event("WARNING", f"Failed to get_me() from Telegram client: {e}")
+
 
         if BOT_TOKEN:
             try:
@@ -74,6 +88,18 @@ class TelegramManager:
             db.log_event("ERROR", f"Failed to send code: {str(e)}")
             return {"status": "error", "message": str(e)}
             
+    def _save_session_to_db(self):
+        """Persist the current Telethon session string to the database.
+        This ensures the session survives Render redeploys (no ephemeral file dependency).
+        """
+        try:
+            session_str = self.client.session.save()
+            if session_str:
+                db.set_setting("telegram_session_string", session_str)
+                db.log_event("INFO", "Userbot session string saved to database.")
+        except Exception as e:
+            db.log_event("ERROR", f"Failed to save session string to DB: {e}")
+
     async def login(self, code, password=None):
         await self.connect()
         try:
@@ -83,12 +109,14 @@ class TelegramManager:
             try:
                 user = await self.client.sign_in(self.phone, code, phone_code_hash=self.phone_code_hash)
                 db.log_event("INFO", f"Successfully signed in as {user.first_name}")
+                self._save_session_to_db()  # Persist session immediately after login
                 self.start_listener()
                 return {"status": "success", "user": user.username or user.phone}
             except SessionPasswordNeededError:
                 if password:
                     user = await self.client.sign_in(password=password)
                     db.log_event("INFO", f"Successfully signed in with 2FA as {user.first_name}")
+                    self._save_session_to_db()  # Persist session immediately after 2FA login
                     self.start_listener()
                     return {"status": "success", "user": user.username or user.phone}
                 else:
@@ -97,6 +125,7 @@ class TelegramManager:
         except Exception as e:
             db.log_event("ERROR", f"Sign in failed: {str(e)}")
             return {"status": "error", "message": str(e)}
+
 
     def send_bot_notification(self, text):
         """Sends an out-of-band notification to the owner via the Telegram Bot Token."""
