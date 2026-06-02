@@ -139,6 +139,7 @@ def get_db_connection():
         import psycopg2
         from urllib.parse import unquote
         
+        parsed_successfully = False
         try:
             # Robust custom parsing to handle passwords with special characters like '@' or '#'
             url_str = db_url
@@ -166,37 +167,73 @@ def get_db_connection():
                     host_port = host_port_db
                     database = ""
                     
+                conn_kwargs = {}
+                if "?" in database:
+                    database, query_str = database.split("?", 1)
+                    from urllib.parse import parse_qsl
+                    for k, v in parse_qsl(query_str):
+                        conn_kwargs[k] = v
+                        
                 if ":" in host_port:
                     hostname, port = host_port.split(":", 1)
                 else:
                     hostname = host_port
                     port = "5432"
-                    
-                conn = psycopg2.connect(
-                    database=unquote(database),
-                    user=unquote(username),
-                    password=unquote(password),
-                    host=hostname,
-                    port=int(port) if port.isdigit() else 5432
-                )
+                
+                parsed_params = {
+                    "database": unquote(database),
+                    "user": unquote(username),
+                    "password": unquote(password),
+                    "host": hostname,
+                    "port": int(port) if port.isdigit() else 5432,
+                    **conn_kwargs
+                }
+                parsed_successfully = True
             else:
-                # Fallback to standard urlparse if no '@' found
                 from urllib.parse import urlparse
                 temp_url = db_url
                 if "://" not in temp_url:
                     temp_url = "postgresql://" + temp_url
                 result = urlparse(temp_url)
-                conn = psycopg2.connect(
-                    database=unquote(result.path[1:]) if result.path else None,
-                    user=unquote(result.username) if result.username else None,
-                    password=unquote(result.password) if result.password else None,
-                    host=result.hostname,
-                    port=result.port
-                )
-        except Exception as e:
-            # Final fallback to direct DSN parsing
-            conn = psycopg2.connect(db_url)
+                
+                database = unquote(result.path[1:]) if result.path else None
+                conn_kwargs = {}
+                if database and "?" in database:
+                    database, query_str = database.split("?", 1)
+                    from urllib.parse import parse_qsl
+                    for k, v in parse_qsl(query_str):
+                        conn_kwargs[k] = v
+                        
+                parsed_params = {
+                    "database": database,
+                    "user": unquote(result.username) if result.username else None,
+                    "password": unquote(result.password) if result.password else None,
+                    "host": result.hostname,
+                    "port": result.port,
+                    **conn_kwargs
+                }
+                parsed_successfully = True
+        except Exception as parse_err:
+            print(f"DATABASE_URL parsing error: {parse_err}")
+            parsed_successfully = False
             
+        if parsed_successfully:
+            try:
+                # Add default sslmode=require if not specified and host is a remote database
+                if "sslmode" not in parsed_params and parsed_params.get("host") and "localhost" not in parsed_params.get("host") and "127.0.0.1" not in parsed_params.get("host"):
+                    parsed_params["sslmode"] = "require"
+                conn = psycopg2.connect(**parsed_params)
+            except Exception as conn_err:
+                print(f"PostgreSQL connection via parsed keywords failed: {conn_err}")
+                raise conn_err
+        else:
+            # Fallback to direct DSN string connection ONLY if parsing itself failed
+            try:
+                conn = psycopg2.connect(db_url)
+            except Exception as fallback_err:
+                print(f"PostgreSQL direct fallback connection failed: {fallback_err}")
+                raise fallback_err
+                
         return PostgresConnectionWrapper(conn)
     else:
         conn = sqlite3.connect(DB_FILE, timeout=10.0)
