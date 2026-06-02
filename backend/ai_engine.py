@@ -537,36 +537,26 @@ def generate_analysis_and_response(message_text, sender_info, chat_history, stat
                                     contact_notes="", custom_rules=None,
                                     has_introduced=False, is_followup=False):
     """
-    Single Gemini call: analyze + draft response.
-    Uses dynamic key rotation pool with failover.
+    Gemini-first: always tries Gemini for the most human response.
+    Falls back to fast-path templates only if ALL Gemini keys fail.
     """
-    # Fast-Path Local Rule Engine — skip Gemini for common intents
-    fast_path = check_fast_path_query(
-        message_text=message_text, 
-        status_mode=status_mode, 
-        chat_history=chat_history, 
-        contact_name=sender_info.get('first_name', '')
-    )
-    if fast_path:
-        reply_text, intent = fast_path
-        # Return simulated analysis instantly (0 latency!)
-        is_hinglish = "bhai" in message_text.lower() or "kya" in message_text.lower() or "hai" in message_text.lower() or "kitna" in message_text.lower() or "kese" in message_text.lower() or "tu" in message_text.lower()
-        return {
-            "sentiment": "neutral",
-            "priority": "important" if intent in ["mm_fees", "account_pricing"] else "normal",
-            "suggested_category": sender_info.get('category', 'unknown'),
-            "relationship_insight": f"Inquired about {intent.replace('_', ' ')}",
-            "language": "hinglish" if is_hinglish else "english",
-            "tone": "polite",
-            "suggested_personality": "Warm & Helpful",
-            "draft_reply": reply_text,
-            "schedule_reminder": None
-        }
+    # ── kept for fallback below ──
+    _fast_path_cache = None
+    def _get_fast_path():
+        nonlocal _fast_path_cache
+        if _fast_path_cache is None:
+            _fast_path_cache = check_fast_path_query(
+                message_text=message_text,
+                status_mode=status_mode,
+                chat_history=chat_history,
+                contact_name=sender_info.get('first_name', '')
+            )
+        return _fast_path_cache
 
-    # Format chat history
+    # Format chat history — last 12 messages for better context
     history_str = ""
-    for msg in chat_history[-6:]:
-        label = "Owner (CatVos)" if msg['sender'] == 'owner' else ("Assistant (Coet)" if msg['sender'] == 'assistant' else "Contact")
+    for msg in chat_history[-12:]:
+        label = "CatVos" if msg['sender'] == 'owner' else ("Coet" if msg['sender'] == 'assistant' else "them")
         history_str += f"{label}: {msg['text']}\n"
 
     # Extract dialogue flow since last owner reply
@@ -613,72 +603,108 @@ def generate_analysis_and_response(message_text, sender_info, chat_history, stat
         )
 
 
-    prompt = f"""You are Coet. CatVos is your close friend — you handle his Telegram messages when he's not around.
+    prompt = f"""You are Coet. CatVos is your close friend — you handle his Telegram DMs when he's not around.
 
-YOU ARE A REAL PERSON texting someone on Telegram. Here's how you write:
-- Casual, natural, like texting a friend — zero corporate language, zero stiffness
-- Match their energy exactly: if they're casual, be casual. if they sent one word, reply short. if they asked something detailed, give a real answer
-- Actually read and respond to what they said — no generic deflections, no copy-paste templates
-- Use contractions naturally (I'm, he's, it's, gonna, wanna, gotta, they're)
-- Occasionally use casual filler words that fit the flow (yeah, yep, nah, tbh, rn, fr, bro)
-- Never say "Kindly", "Please be advised", "I would like to inform", "As per", "Henceforth" or any formal corporate phrases
-- Never say "How can I assist you today?" — that's robotic. Say "what's up?" or "what do you need?"
-- Don't repeat yourself or state obvious things
-- If they write in Hinglish (Hindi in Roman script), reply in natural Hinglish (Roman script ONLY, never Devanagari)
+You text like a real person. Casual. Natural. Read what they said and actually respond to it.
+CatVos is currently: {status_context}
+
+---
+FIRST: Learn from these examples. This is the EXACT style you must write in.
+
+BAD (never write like this):
+  them: "hii"
+  ❌ "Hello there! I'm Coet, CatVos's executive manager. How can I assist you today?"
+
+  them: "do you have wp alt in stock?"
+  ❌ "WhatsApp accounts stock and pricing details will be shared directly by CatVos as soon as he is back online. CatVos is currently offline resting."
+
+  them: "do you guys do website designing?"
+  ❌ "Yes! We actively provide website development. Kindly leave your requirements here!"
+
+  them: "coet?"
+  ❌ "CatVos is offline resting. He'll get back to you in the morning."
+
+GOOD (always write like this):
+  them: "hii"
+  ✅ "hey! CatVos is {status_context}, I'm Coet — his guy. what's up?"
+
+  them: "do you have wp alt in stock?"
+  ✅ "yeah we got WP alts. CatVos is {status_context} but he'll send you the full catalog and options directly once he's free"
+
+  them: "do you guys do website designing?"
+  ✅ "yep we do websites. drop your requirements here and CatVos will discuss everything with you once he's back"
+
+  them: "coet?"
+  ✅ "yeah I'm here. what's up?"
+
+  them: "bhai wp alts hain?"
+  ✅ "haan bhai hain! CatVos {status_context} — free hote hi directly catalog share kar denge. kuch aur?"
+
+  them: "gooo" (no clear meaning)
+  ✅ "?" or "kuch bol bhai" — match their energy, even if it's random
+---
 
 {intro_rule}
 
-WHO YOU ARE:
-Name: Coet
-You handle CatVos's business — WhatsApp alts, Telegram channels, middleman/escrow deals, website development, video editing, graphic design.
-CatVos right now: {status_context}
+BUSINESS RULES:
+- Never quote prices — CatVos discusses directly
+- Any service asked (WP alts, TG channels, website, editing, design, MM): confirm YES first, then say CatVos will share details when free
+- Video/design: mention @previewcom to browse styles; custom work = CatVos coordinates
+- About this bot/developer: shinichiro built it (@shinichirofr)
+- You're NOT a bot — never say or imply it
+- Hinglish in = Hinglish out (Roman script only, no Devanagari)
 
-BUSINESS RULES (non-negotiable):
-- NEVER quote specific prices or rates — say CatVos will discuss directly
-- If asked about ANY service (WP alts, TG channels, website, editing, design, MM escrow): FIRST confirm YES we do that, THEN say CatVos will share details directly when free
-- Video/graphic design: point them to @previewcom to browse styles. Custom = CatVos coordinates directly
-- Questions about this system/bot/developer: shinichiro built it (telegram: @shinichirofr)
-- You are NOT a bot or AI — you're a person. Never break this
-- DO NOT reply with only a status message. Always engage with what they actually said first
+{f'CUSTOM PERSONALITY:\n{personality}' if personality else ''}
 
-{f'EXTRA PERSONALITY RULES:\n{personality}' if personality else ''}
+KNOWLEDGE BASE:
+{knowledge_base if knowledge_base else '(none set)'}
 
-BUSINESS KNOWLEDGE BASE:
-{knowledge_base}
+CONVERSATION:
+{history_str if history_str else '(first message)'}
 
-CONVERSATION SO FAR:
-{history_str}
+THEY SENT: "{message_text}"
 
-THEY JUST SENT: "{message_text}"
+Reply like a real person. Short if they're short. Real if they asked something real. Never robotic.
 
-Write a reply that sounds like a real person texted it. Read what they said, understand it, respond to it specifically.
-No templates. No corporate language. No robotic patterns. Just a natural, human reply.
-
-OUTPUT JSON ONLY:
+JSON ONLY:
 {{
     "sentiment": "happiness/frustration/anger/sadness/excitement/urgency/neutral/confusion",
     "priority": "critical/important/normal/low",
     "suggested_category": "family/friend/client/business_partner/vip/team_member/unknown",
-    "relationship_insight": "brief action item or empty string",
+    "relationship_insight": "brief note or empty string",
     "language": "english/hinglish/hindi/other",
     "tone": "casual/formal/angry/impatient/polite/urgent",
     "suggested_personality": "Casual Friend/Premium Executive/Firm & Direct/Empathetic Support/Warm & Helpful",
-    "draft_reply": "the reply — sounds like a real person texted it",
-    "schedule_reminder": {{
-        "task": "short task or null",
-        "due_time": "relative date or null"
-    }}
+    "draft_reply": "<your reply here — sounds like a real person texted it>",
+    "schedule_reminder": {{"task": null, "due_time": null}}
 }}
 """
 
 
 
-
     try:
         text = generate_content_with_retry(prompt, response_mime_type="application/json")
-        return json.loads(text)
+        result = json.loads(text)
+        return result
     except Exception as e:
-        print(f"Error in unified generator: {e}")
+        print(f"[Coet] Gemini failed, falling back to fast-path templates: {e}")
+        # Fallback: try fast-path template first
+        fast_path = _get_fast_path()
+        if fast_path:
+            reply_text, intent = fast_path
+            is_hinglish = any(x in message_text.lower() for x in ["bhai", "kya", "hai", "kitna", "kese", "tu", "yaar", "haan"])
+            return {
+                "sentiment": "neutral",
+                "priority": "important" if intent in ["mm_fees", "account_pricing"] else "normal",
+                "suggested_category": sender_info.get('category', 'unknown'),
+                "relationship_insight": f"Inquired about {intent.replace('_', ' ')}",
+                "language": "hinglish" if is_hinglish else "english",
+                "tone": "casual",
+                "suggested_personality": "Warm & Helpful",
+                "draft_reply": reply_text,
+                "schedule_reminder": None
+            }
+        # Last resort: rule-based fallback
         contact_name = sender_info.get('first_name', '') if sender_info else ""
         fallback = get_rule_based_fallback(message_text, status_mode, chat_history, contact_name)
         return {
@@ -692,6 +718,7 @@ OUTPUT JSON ONLY:
             "draft_reply": fallback,
             "schedule_reminder": None
         }
+
 
 # ─────────────────────────────────────────────────────────────
 # DAILY BRIEFING
