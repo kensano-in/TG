@@ -1,0 +1,27 @@
+# Environments and Private API Keys
+.env
+*.env
+env/
+venv/
+.venv/
+scratch/
+
+# Telegram Session Credentials (CRITICAL - DO NOT SHARE)
+*.session
+*.session-journal
+
+# Local SQLite Databases & Cache
+*.db
+*.db-journal
+*.sqlite
+__pycache__/
+*.pyc
+
+# Node Dependency Packages & Compiles
+node_modules/
+dist/
+.eslintcache
+
+# Local IDE Settings
+.vscode/
+.idea/
