@@ -3,8 +3,7 @@ import os
 import time
 from datetime import datetime
 
-# Setup dynamic DB detection (Supabase Postgres cloud database when DATABASE_URL is present)
-DATABASE_URL = os.getenv("DATABASE_URL")
+# Cache for settings table to reduce disk/db query latency
 
 class PostgresCursorWrapper:
     def __init__(self, pg_cursor):
@@ -134,12 +133,13 @@ def load_settings_cache():
         print(f"Error loading settings cache: {e}")
 
 def get_db_connection():
-    if DATABASE_URL:
+    db_url = os.getenv("DATABASE_URL")
+    if db_url:
         import psycopg2
         # If it looks like a URI, parse it into connection kwargs to handle special characters properly
-        if DATABASE_URL.startswith("postgresql://") or DATABASE_URL.startswith("postgres://"):
+        if db_url.startswith("postgresql://") or db_url.startswith("postgres://"):
             from urllib.parse import urlparse, unquote
-            result = urlparse(DATABASE_URL)
+            result = urlparse(db_url)
             username = unquote(result.username) if result.username else None
             password = unquote(result.password) if result.password else None
             database = unquote(result.path[1:]) if result.path else None
@@ -154,7 +154,7 @@ def get_db_connection():
                 port=port
             )
         else:
-            conn = psycopg2.connect(DATABASE_URL)
+            conn = psycopg2.connect(db_url)
         return PostgresConnectionWrapper(conn)
     else:
         conn = sqlite3.connect(DB_FILE, timeout=10.0)
@@ -162,8 +162,9 @@ def get_db_connection():
         return conn
 
 def init_db():
+    db_url = os.getenv("DATABASE_URL")
     conn = get_db_connection()
-    if not DATABASE_URL:
+    if not db_url:
         # Enable WAL mode and synchronous normal once at startup for speed & safety
         try:
             conn.execute("PRAGMA journal_mode=WAL")
