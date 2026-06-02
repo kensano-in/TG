@@ -65,17 +65,29 @@ class PostgresCursorWrapper:
             query = query.replace("GROUP BY date(timestamp)", "GROUP BY timestamp::date")
             query = query.replace("ORDER BY date(timestamp) DESC", "ORDER BY timestamp::date DESC")
 
-        # Telegram IDs are 64-bit — must be BIGINT not INTEGER in PostgreSQL
-        # This handles non-PK telegram_id columns (FK references in messages, reminders, etc.)
-        if "telegram_id INTEGER" in query and "PRIMARY KEY" not in query:
-            query = query.replace("telegram_id INTEGER", "telegram_id BIGINT")
-        # Also handle is_muted INTEGER and other non-ID integers that are fine as-is
-        # (no change needed for those)
+        # Telegram IDs are 64-bit integers — fix per-line using regex so we don't
+        # accidentally match 'PRIMARY KEY' on a DIFFERENT line of the same CREATE TABLE.
+        import re
+        query = re.sub(r'\btelegram_id\s+INTEGER(?!\s+PRIMARY)', 'telegram_id BIGINT', query)
+
+        # CRITICAL: psycopg2 maps Python int -> PostgreSQL INTEGER (32-bit) by default.
+        # Telegram user IDs can be up to 64-bit (e.g. 7814788493 > 2,147,483,647).
+        # Wrap any oversized integer param in Int8 so psycopg2 sends it as BIGINT.
+        if params is not None:
+            import psycopg2.extensions
+            _INT32_MAX = 2_147_483_647
+            fixed = []
+            for p in (params if isinstance(params, (list, tuple)) else [params]):
+                if isinstance(p, int) and not isinstance(p, bool) and abs(p) > _INT32_MAX:
+                    fixed.append(psycopg2.extensions.AsIs(str(p)))
+                else:
+                    fixed.append(p)
+            params = type(params)(fixed) if isinstance(params, (list, tuple)) else fixed[0]
 
         # Execute query
         if params is not None:
-            # Handle float/int to string coercions if necessary
             self.cursor.execute(query, params)
+
         else:
             self.cursor.execute(query)
         return self

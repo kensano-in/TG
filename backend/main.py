@@ -409,6 +409,69 @@ async def get_daily_briefing(payload: Optional[BriefingRequest] = None, token: d
     return briefing
 
 
+@app.post(\"/api/admin/force-migrate\")
+async def force_bigint_migration(token: dict = Depends(verify_token)):
+    \"\"\"Force ALTER TABLE to convert telegram_id columns from INTEGER to BIGINT.
+    This is needed because the Supabase Supavisor pooler may block DDL in normal transactions.
+    Uses autocommit=True to ensure DDL commits immediately.
+    \"\"\"
+    import os
+    db_url = os.getenv(\"DATABASE_URL\")
+    if not db_url:
+        return {\"status\": \"skipped\", \"reason\": \"No DATABASE_URL (SQLite mode)\"}
+
+    results = {}
+    migrations = [
+        \"ALTER TABLE messages ALTER COLUMN telegram_id TYPE BIGINT\",
+        \"ALTER TABLE reminders ALTER COLUMN telegram_id TYPE BIGINT\",
+    ]
+
+    try:
+        import psycopg2
+        from urllib.parse import unquote
+        db_url = db_url.strip().strip(\"'\").strip('\"')
+        # Parse URL same way as get_db_connection
+        url_str = db_url
+        for prefix in [\"postgresql://\", \"postgres://\"]:
+            if url_str.startswith(prefix):
+                url_str = url_str[len(prefix):]
+                break
+        parts = url_str.rsplit(\"@\", 1)
+        user_pass = parts[0]
+        host_port_db = parts[1]
+        username, password = user_pass.split(\":\", 1) if \":\" in user_pass else (user_pass, \"\")
+        host_part, database = host_port_db.split(\"/\", 1) if \"/\" in host_port_db else (host_port_db, \"\")
+        if \"?\" in database:
+            database = database.split(\"?\", 1)[0]
+        hostname, port = host_part.split(\":\", 1) if \":\" in host_part else (host_part, \"6543\")
+
+        # Use Supabase session pooler (port 5432) instead of transaction pooler (6543) for DDL
+        if hostname.endswith(\".pooler.supabase.com\"):
+            port = \"5432\"  # Session mode supports DDL properly
+
+        conn = psycopg2.connect(
+            host=hostname, port=int(port), database=unquote(database),
+            user=unquote(username), password=unquote(password)
+        )
+        conn.autocommit = True  # DDL needs autocommit — no transaction wrapper
+        cursor = conn.cursor()
+
+        for sql in migrations:
+            try:
+                cursor.execute(sql)
+                results[sql] = \"OK\"
+            except Exception as e:
+                results[sql] = f\"SKIPPED: {str(e)[:100]}\"
+
+        cursor.close()
+        conn.close()
+        db.log_event(\"INFO\", f\"force-migrate completed: {results}\")
+        return {\"status\": \"done\", \"results\": results}
+    except Exception as e:
+        db.log_event(\"ERROR\", f\"force-migrate failed: {e}\")
+        return {\"status\": \"error\", \"detail\": str(e)}
+
+
 @app.delete("/api/rules/keywords/{rule_id}")
 async def delete_keyword_rule_route(rule_id: int, token: dict = Depends(verify_token)):
     db.delete_keyword_rule(rule_id)
