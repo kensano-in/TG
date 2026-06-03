@@ -718,3 +718,32 @@ async def websocket_endpoint(websocket: WebSocket):
         tg_manager.websocket_clients.discard(websocket)
     except Exception:
         tg_manager.websocket_clients.discard(websocket)
+
+@app.get("/api/debug-userbot")
+async def debug_userbot():
+    try:
+        if tg_manager.client is None:
+            return {"status": "client_is_none"}
+        connected = tg_manager.client.is_connected()
+        authorized = await tg_manager.client.is_user_authorized() if connected else False
+        me = None
+        if authorized:
+            me_obj = await tg_manager.client.get_me()
+            if me_obj:
+                me = {"id": me_obj.id, "first_name": me_obj.first_name, "username": me_obj.username, "phone": me_obj.phone}
+        
+        bot_connected = tg_manager.bot_client.is_connected() if tg_manager.bot_client else False
+        
+        return {
+            "status": "success",
+            "connected": connected,
+            "authorized": authorized,
+            "me_id": tg_manager.me_id,
+            "me": me,
+            "bot_connected": bot_connected,
+            "is_running": tg_manager.is_running
+        }
+    except Exception as e:
+        import traceback
+        return {"status": "error", "error": str(e), "traceback": traceback.format_exc()}
+
