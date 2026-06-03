@@ -702,14 +702,23 @@ class TelegramManager:
                     db.log_event("WARNING", f"Failed to react to message: {e}")
                     # If reaction fails, continue to normal reply path
 
+            # Check approval mode before showing typing indicator or marking read
+            approval_mode = db.get_setting("approval_mode", "0") == "1"
+            force_draft_vips = db.get_setting("force_draft_vips", "1") == "1"
+            contact_cat = contact.get('category', 'unknown').lower()
+            is_vip = contact_cat in ['vip', 'client', 'business_partner']
+            if force_draft_vips and is_vip:
+                approval_mode = True
+
             # Simulated human reading delay before marking read for AI path
-            if enable_human_delays:
-                read_delay = random.uniform(1.5, 3.5)
-                await asyncio.sleep(read_delay)
-            try:
-                await event.message.mark_read()
-            except Exception:
-                pass
+            if not approval_mode:
+                if enable_human_delays:
+                    read_delay = random.uniform(1.5, 3.5)
+                    await asyncio.sleep(read_delay)
+                try:
+                    await event.message.mark_read()
+                except Exception:
+                    pass
             # Cognitive pause before starting typing indicator for AI path
             if enable_human_delays:
                 await asyncio.sleep(random.uniform(0.5, 1.2))
@@ -738,14 +747,6 @@ class TelegramManager:
                         pass
                     break
             
-            # Check approval mode before showing typing indicator
-            approval_mode = db.get_setting("approval_mode", "0") == "1"
-            force_draft_vips = db.get_setting("force_draft_vips", "1") == "1"
-            contact_cat = contact.get('category', 'unknown').lower()
-            is_vip = contact_cat in ['vip', 'client', 'business_partner']
-            if force_draft_vips and is_vip:
-                approval_mode = True
-
             # Helper coroutine to perform the Gemini analysis and drafting
             async def run_analysis_and_drafting():
                 # Analyze and draft response in a single Gemini call to reduce latency
@@ -832,34 +833,45 @@ class TelegramManager:
             # Check for casual chitchat lockout trigger
             is_chitchat = analysis.get("is_chitchat", False)
             if is_chitchat:
-                lockout_msg = (
-                    "⚠️ <b>System Protocol: Non-Transactional Query Detected</b>\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "<blockquote>To optimize response efficiency, my automated assistant pilot is strictly reserved for active business transactions, middleman deals, stock catalogs, and development inquiries.\n\n"
-                    "I have logged all message history. Once CatVos (administrator) is back online, your request details will be forwarded directly for personal review.\n\n"
-                    "For this session, automated replies have been paused and your chat has been archived in the admin's business log. Thank you for your cooperation.</blockquote>\n\n"
-                    "<b>💡 Setup Coet AI on your profile:</b>\n"
-                    "• Visit @coetbot for more details.\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "<i>Session auto-reply paused. Have a productive day. — Coet</i>"
-                )
-                async with self.client.action(sender_id, 'typing'):
-                    await asyncio.sleep(2.0)
-                    normalized = self.normalize_text_for_match(lockout_msg)
-                    if normalized:
-                        self.assistant_sent_message_texts.add(normalized)
-                    msg = await self.client.send_message(sender_id, lockout_msg, parse_mode="html")
-                    self.assistant_sent_message_ids.add(msg.id)
-                db.add_message(sender_id, 'assistant', lockout_msg, sentiment='neutral', priority='low', language='english', tone='formal')
-                db.set_setting(f"chitchat_locked_{sender_id}", "1")
-                db.log_event("WARNING", f"🚫 CHITCHAT SHIELD TRIGGERED: Paused auto-replies for {sender_name} ({sender_id}) due to casual chitchat.")
-                
-                await self.broadcast_ws("new_message", {
-                    "telegram_id": sender_id,
-                    "sender": "assistant",
-                    "text": lockout_msg
-                })
-                return
+                if not is_followup:
+                    # First greeting: do NOT block/lockout. Instead, guide them back to business!
+                    is_chitchat = False
+                    analysis["is_chitchat"] = False
+                    if detected_lang == 'hinglish':
+                        reply_draft = "Hello! CatVos abhi offline hai. Main unka manager Coet hu. Bataiye aapko kis service ki requirement hai? (WhatsApp stock, Telegram channels, middleman escrow deal, website development, or design/editing?)"
+                    else:
+                        reply_draft = "Hello! CatVos is currently offline. I am his manager, Coet. Please let me know what service you need (WhatsApp accounts, Telegram channels, escrow/middleman, website development, or graphic design/editing)."
+                    analysis["draft_reply"] = reply_draft
+                else:
+                    # Subsequent chitchat: enforce strict chitchat shield lockout
+                    lockout_msg = (
+                        "⚠️ <b>System Protocol: Non-Transactional Query Detected</b>\n"
+                        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                        "<blockquote>To optimize response efficiency, my automated assistant pilot is strictly reserved for active business transactions, middleman deals, stock catalogs, and development inquiries.\n\n"
+                        "I have logged all message history. Once CatVos (administrator) is back online, your request details will be forwarded directly for personal review.\n\n"
+                        "For this session, automated replies have been paused and your chat has been archived in the admin's business log. Thank you for your cooperation.</blockquote>\n\n"
+                        "<b>💡 Setup Coet AI on your profile:</b>\n"
+                        "• Visit @coetbot for more details.\n"
+                        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                        "<i>Session auto-reply paused. Have a productive day. — Coet</i>"
+                    )
+                    async with self.client.action(sender_id, 'typing'):
+                        await asyncio.sleep(2.0)
+                        normalized = self.normalize_text_for_match(lockout_msg)
+                        if normalized:
+                            self.assistant_sent_message_texts.add(normalized)
+                        msg = await self.client.send_message(sender_id, lockout_msg, parse_mode="html")
+                        self.assistant_sent_message_ids.add(msg.id)
+                    db.add_message(sender_id, 'assistant', lockout_msg, sentiment='neutral', priority='low', language='english', tone='formal')
+                    db.set_setting(f"chitchat_locked_{sender_id}", "1")
+                    db.log_event("WARNING", f"🚫 CHITCHAT SHIELD TRIGGERED: Paused auto-replies for {sender_name} ({sender_id}) due to casual chitchat.")
+                    
+                    await self.broadcast_ws("new_message", {
+                        "telegram_id": sender_id,
+                        "sender": "assistant",
+                        "text": lockout_msg
+                    })
+                    return
             
             # Commit AI scheduled reminder to SQLite and broadcast to UI
             if schedule_rem and isinstance(schedule_rem, dict) and schedule_rem.get("task"):
