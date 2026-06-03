@@ -702,16 +702,23 @@ class TelegramManager:
                         ),
                         timeout=15.0
                     )
+                    # SUCCESS! Save this context/reply combination to the Q&A backup cache database!
+                    if analysis and analysis.get("draft_reply"):
+                        db.add_qa_backup(text, analysis.get("draft_reply"))
                 except Exception as e:
                     db.log_event("WARNING", f"Gemini API invocation failed ({e}) for message from {sender_name}. Switching to high-fidelity Offline Backup engine.")
-                    fallback_reply = ai_engine.get_rule_based_fallback(
-                        text, current_status, history, contact.get('first_name', '')
-                    )
+                    # 1. Try to find a matched Q&A combination from our local Q&A backup database first!
+                    fallback_reply = db.match_qa_backup(text)
+                    if not fallback_reply:
+                        # 2. If no matched Q&A backup, run the rule-based fallback
+                        fallback_reply = ai_engine.get_rule_based_fallback(
+                            text, current_status, history, contact.get('first_name', '')
+                        )
                     analysis = {
                         "sentiment": "neutral",
                         "priority": "normal",
                         "suggested_category": contact.get('category', 'unknown'),
-                        "relationship_insight": "All Gemini API keys are currently rate-limited or offline. Enforced local offline RAG rules.",
+                        "relationship_insight": "All Gemini API keys are currently rate-limited or offline. Enforced local offline Q&A RAG rules.",
                         "language": "hinglish" if any(x in text.lower() for x in ["bhai", "yaar", "kya", "hai", "ko"]) else "english",
                         "tone": "casual",
                         "suggested_personality": "Human Offline Backup",

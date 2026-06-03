@@ -25,6 +25,9 @@ class PostgresCursorWrapper:
             elif "contacts" in query.lower():
                 query = query.replace("INSERT OR IGNORE INTO contacts", "INSERT INTO contacts")
                 query += " ON CONFLICT (telegram_id) DO NOTHING"
+            elif "qa_backup" in query.lower():
+                query = query.replace("INSERT OR IGNORE INTO qa_backup", "INSERT INTO qa_backup")
+                query += " ON CONFLICT (cleaned_query) DO NOTHING"
         
         # Translate INSERT OR REPLACE syntax
         if "INSERT OR REPLACE" in query:
@@ -34,6 +37,9 @@ class PostgresCursorWrapper:
             elif "keyword_rules" in query.lower():
                 query = query.replace("INSERT OR REPLACE INTO keyword_rules", "INSERT INTO keyword_rules")
                 query += " ON CONFLICT (keyword) DO UPDATE SET response = EXCLUDED.response, match_mode = EXCLUDED.match_mode, action_type = EXCLUDED.action_type, action_value = EXCLUDED.action_value"
+            elif "qa_backup" in query.lower():
+                query = query.replace("INSERT OR REPLACE INTO qa_backup", "INSERT INTO qa_backup")
+                query += " ON CONFLICT (cleaned_query) DO UPDATE SET response = EXCLUDED.response"
         
         # Auto-increment conversion
         if "AUTOINCREMENT" in query:
@@ -405,6 +411,16 @@ def init_db():
         timestamp TEXT
     )
     """)
+
+    # Create qa_backup table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS qa_backup (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cleaned_query TEXT UNIQUE,
+        original_query TEXT,
+        response TEXT
+    )
+    """)
     
     # Run migrations for language and tone in messages table
     # NOTE: We must handle BOTH sqlite3.OperationalError (SQLite) AND psycopg2 DuplicateColumn errors (PostgreSQL)
@@ -477,6 +493,56 @@ def init_db():
     ]
     for kw, resp in default_rules:
         cursor.execute("INSERT OR IGNORE INTO keyword_rules (keyword, response) VALUES (?, ?)", (kw, resp))
+
+    # Insert default Q&A backups for high-fidelity offline fallback
+    default_qa = [
+        ("what is middleman fee", "Flat 5% secure middleman fee is charged for all escrow transactions."),
+        ("middleman charges", "Escrow and middleman charges are 5% of the deal value to ensure transaction safety."),
+        ("middleman rules", "All middleman deals are held securely by CatVos. Secure fee is flat 5% per transaction."),
+        ("mm fee", "MM fee is flat 5% per transaction, handled securely by CatVos."),
+        ("escrow fee", "Escrow fee is flat 5% per deal. CatVos manages the transaction security."),
+        ("do you have whatsapp stock", "Yes, WhatsApp alts/accounts stock is available. CatVos will share the catalog and rates directly once online."),
+        ("whatsapp rates", "WhatsApp accounts pricing depends on the batch size. CatVos will share the catalog and rates directly."),
+        ("whatsapp accounts price", "WhatsApp alts/accounts pricing details and stock catalog will be shared by CatVos directly when online."),
+        ("wp price", "WhatsApp accounts pricing details and stock catalog will be shared by CatVos directly when online."),
+        ("wp stock", "Yes, fresh WhatsApp alts stock is available. CatVos will share details directly once back."),
+        ("whatsapp numbers", "WhatsApp numbers are available in stock. CatVos will share rates once back."),
+        ("telegram channels stock", "Telegram channels and group stock are available. CatVos will share the details and options directly."),
+        ("telegram channel price", "Telegram channel rates depend on members/niche. CatVos will share the list and pricing once online."),
+        ("tg channel rate", "Telegram channel rates depend on members/niche. CatVos will share the list and pricing once online."),
+        ("tg stock", "Telegram channels and group stock are available. CatVos will share the details and options directly."),
+        ("do you do website coding", "Yes, custom website development, UI/UX designs, and custom scripts are offered. Drop your project brief here and CatVos will coordinate directly."),
+        ("website pricing", "For custom website projects, please wait for CatVos to coordinate with you directly to provide a custom quote."),
+        ("site price", "For custom website projects, please wait for CatVos to coordinate with you directly to provide a custom quote."),
+        ("web development", "Yes, custom website development, UI/UX designs, and custom scripts are offered. Drop your project brief here and CatVos will coordinate directly."),
+        ("video editing services", "Yes, premium video editing and graphic design work are available. Check out the preview channel: @previewcom on Telegram."),
+        ("logo design banner thumbnail", "Logo, banner, and thumbnail designs are available. Check out the preview channel: @previewcom on Telegram."),
+        ("edit thumbnail", "Logo, banner, and thumbnail designs are available. Check out the preview channel: @previewcom on Telegram."),
+        ("graphic designer", "Yes, premium graphic design work is available. Check out the preview channel: @previewcom on Telegram."),
+        ("what payment methods do you accept", "We support UPI for instant fiat settlement. CatVos will provide the active UPI details once online."),
+        ("do you accept upi", "Yes, UPI payments are supported. CatVos will share the active UPI details once the deal is finalized."),
+        ("upi details", "UPI payments are supported. CatVos will share the active UPI details once the deal is finalized."),
+        ("payment upi", "UPI payments are supported. CatVos will share the active UPI details once the deal is finalized."),
+        ("official website link", "You can visit the official website at https://verlyn.dev."),
+        ("verlyn dev", "You can visit the official website at https://verlyn.dev."),
+        ("website url", "You can visit the official website at https://verlyn.dev."),
+        ("who made you", "I am Coet, built by lead developer shinichiro (@shinichirofr) to manage CatVos's communications."),
+        ("how to get this bot", "For bot setups, Digital Twin clones, and client managers, contact lead developer @shinichirofr directly."),
+        ("coet setup details", "Custom chatbot setups and userbot manager deployments are handled directly by @shinichirofr."),
+        ("shinichiro telegram", "Contact lead developer @shinichirofr directly on Telegram."),
+    ]
+    
+    import re
+    for q, r in default_qa:
+        cleaned = q.lower().strip()
+        cleaned = re.sub(r'<[^>]*>', '', cleaned)
+        cleaned = re.sub(r'[\*\_\`\~]', '', cleaned)
+        cleaned = re.sub(r'[\.\,\!\?\:\;\-\"\'\(\)\[\]\{\}]', '', cleaned)
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+        cursor.execute(
+            "INSERT OR IGNORE INTO qa_backup (cleaned_query, original_query, response) VALUES (?, ?, ?)",
+            (cleaned, q, r)
+        )
         
     # Migrate/Update existing setting if it was using the old, repetitive introduction prompt
     cursor.execute("SELECT value FROM settings WHERE key = 'ai_personality'")
@@ -978,3 +1044,72 @@ def get_vault_items(item_type=None):
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+def add_qa_backup(original_query, response):
+    """Save a query and its successful Gemini response for offline local Q&A fallback."""
+    if not original_query or not response:
+        return
+    import re
+    cleaned = original_query.lower().strip()
+    cleaned = re.sub(r'<[^>]*>', '', cleaned)
+    cleaned = re.sub(r'[\*\_\`\~]', '', cleaned)
+    cleaned = re.sub(r'[\.\,\!\?\:\;\-\"\'\(\)\[\]\{\}]', '', cleaned)
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    if not cleaned:
+        return
+        
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT OR REPLACE INTO qa_backup (cleaned_query, original_query, response) VALUES (?, ?, ?)",
+            (cleaned, original_query.strip(), response.strip())
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error saving QA backup: {e}")
+
+def match_qa_backup(message_text):
+    """
+    Finds a highly similar Q&A backup record in the local database.
+    Uses difflib SequenceMatcher to do high-fidelity fuzzy text matching.
+    """
+    if not message_text:
+        return None
+    import re
+    import difflib
+    
+    cleaned = message_text.lower().strip()
+    cleaned = re.sub(r'<[^>]*>', '', cleaned)
+    cleaned = re.sub(r'[\*\_\`\~]', '', cleaned)
+    cleaned = re.sub(r'[\.\,\!\?\:\;\-\"\'\(\)\[\]\{\}]', '', cleaned)
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    if not cleaned:
+        return None
+        
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT cleaned_query, response FROM qa_backup")
+        rows = cursor.fetchall()
+        conn.close()
+    except Exception as e:
+        print(f"Error reading QA backup: {e}")
+        return None
+        
+    best_match = None
+    best_ratio = 0.0
+    
+    for row in rows:
+        db_query = row['cleaned_query']
+        if db_query == cleaned:
+            return row['response']
+        ratio = difflib.SequenceMatcher(None, cleaned, db_query).ratio()
+        if ratio > best_ratio:
+            best_ratio = ratio
+            best_match = row['response']
+            
+    if best_ratio >= 0.8:
+        return best_match
+    return None
