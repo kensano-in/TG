@@ -245,6 +245,147 @@ class TelegramManager:
             return True
         return False
 
+    async def apply_system_update(self, system_update, sender_id, username, sender_name):
+        """
+        Executes a system update action from Sensei and returns a confirmation message.
+        """
+        action = system_update.get("action")
+        if not action or action == "none":
+            return None
+            
+        confirmation = None
+        
+        if action == "update_setting":
+            up_key = system_update.get("key")
+            up_val = system_update.get("value")
+            if up_key and up_val is not None:
+                db.set_setting(up_key, str(up_val))
+                db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL: Updated setting '{up_key}' to '{up_val}'")
+                confirmation = f"Yes Sensei! Updated setting <b>{up_key}</b> to '{up_val}'."
+                
+        elif action == "add_keyword_rule":
+            kw = system_update.get("keyword")
+            resp = system_update.get("response")
+            if kw and resp:
+                conn = db.get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("INSERT OR REPLACE INTO keyword_rules (keyword, response) VALUES (?, ?)", (kw, resp))
+                conn.commit()
+                conn.close()
+                db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL: Added keyword rule '{kw}' -> '{resp}'")
+                confirmation = f"Yes Sensei! Added keyword rule: <code>{kw}</code> ➔ <i>{resp}</i>."
+                
+        elif action == "delete_keyword_rule":
+            kw = system_update.get("keyword")
+            if kw:
+                conn = db.get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM keyword_rules WHERE keyword = ?", (kw,))
+                conn.commit()
+                conn.close()
+                db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL: Deleted keyword rule '{kw}'")
+                confirmation = f"Yes Sensei! Deleted keyword rule: <code>{kw}</code>."
+                
+        elif action == "append_knowledge_base":
+            fact = system_update.get("value")
+            if fact:
+                current_kb = db.get_setting("knowledge_base", "")
+                new_kb = f"{current_kb.strip()}\n- {fact.strip()}".strip() if current_kb else f"- {fact.strip()}"
+                db.set_setting("knowledge_base", new_kb)
+                db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL: Appended fact to KB: '{fact}'")
+                confirmation = f"Yes Sensei! Added to my knowledge base:\n• <i>{fact}</i>"
+                
+        elif action == "update_personality":
+            trait = system_update.get("value")
+            if trait:
+                current_pers = db.get_setting("ai_personality", "")
+                new_pers = f"{current_pers.strip()}\n- {trait.strip()}".strip() if current_pers else f"- {trait.strip()}"
+                db.set_setting("ai_personality", new_pers)
+                db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL: Appended personality trait: '{trait}'")
+                confirmation = f"Yes Sensei! Added to my personality rules:\n• <i>{trait}</i>"
+                
+        elif action == "clear_knowledge_base":
+            db.set_setting("knowledge_base", "")
+            db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL: Cleared knowledge base")
+            confirmation = "Yes Sensei! Knowledge base ko completely clear kar diya hai."
+            
+        elif action == "clear_personality":
+            db.set_setting("ai_personality", "")
+            db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL: Cleared personality traits")
+            confirmation = "Yes Sensei! Personality custom rules ko completely clear kar diya hai."
+            
+        elif action == "show_knowledge_base":
+            current_kb = db.get_setting("knowledge_base", "")
+            confirmation = f"Yes Sensei! Ye raha abhi ka knowledge base:\n\n{current_kb if current_kb else '<i>(empty)</i>'}"
+            
+        elif action == "show_personality":
+            current_pers = db.get_setting("ai_personality", "")
+            confirmation = f"Yes Sensei! Ye raha abhi ka personality traits:\n\n{current_pers if current_pers else '<i>(empty)</i>'}"
+            
+        elif action == "show_settings":
+            assistant_name = db.get_setting("assistant_name", "Coet")
+            status = db.get_setting("status", "focus")
+            auto_sleep = db.get_setting("auto_sleep_enabled", "1")
+            auto_busy = db.get_setting("auto_busy_enabled", "1")
+            timezone = db.get_setting("timezone", "Asia/Kolkata")
+            start = db.get_setting("active_hours_start", "9")
+            end = db.get_setting("active_hours_end", "23")
+            reply_delay_min = db.get_setting("reply_delay_min", "1.2")
+            reply_delay_max = db.get_setting("reply_delay_max", "4.0")
+            confirmation = (
+                f"Yes Sensei! System settings:\n"
+                f"• <b>Assistant Name:</b> {assistant_name}\n"
+                f"• <b>Status Mode:</b> {status}\n"
+                f"• <b>Auto Sleep:</b> {'Enabled' if auto_sleep=='1' else 'Disabled'}\n"
+                f"• <b>Auto Busy:</b> {'Enabled' if auto_busy=='1' else 'Disabled'}\n"
+                f"• <b>Timezone:</b> {timezone}\n"
+                f"• <b>Active Hours:</b> {start}:00 - {end}:00\n"
+                f"• <b>Typing Delay:</b> {reply_delay_min}s - {reply_delay_max}s"
+            )
+            
+        elif action == "set_status":
+            val = system_update.get("value")
+            if val:
+                db.set_setting("status", val)
+                db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL: Status set to '{val}'")
+                confirmation = f"Yes Sensei! Status ko change kar ke <b>{val}</b> kar diya hai."
+                
+        elif action == "mute_contact":
+            target = system_update.get("target")
+            if target:
+                t_id = db.resolve_contact_id_by_identifier(target)
+                if t_id:
+                    db.update_contact(t_id, is_muted=1)
+                    db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL: Muted contact '{target}' ({t_id})")
+                    confirmation = f"Yes Sensei! Contact <code>{target}</code> (ID: {t_id}) ko mute kar diya hai."
+                else:
+                    confirmation = f"Yes Sensei! Mujhe target contact <code>{target}</code> database me nahi mila."
+                    
+        elif action == "unmute_contact":
+            target = system_update.get("target")
+            if target:
+                t_id = db.resolve_contact_id_by_identifier(target)
+                if t_id:
+                    db.update_contact(t_id, is_muted=0)
+                    db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL: Unmuted contact '{target}' ({t_id})")
+                    confirmation = f"Yes Sensei! Contact <code>{target}</code> (ID: {t_id}) ko unmute kar diya hai."
+                else:
+                    confirmation = f"Yes Sensei! Mujhe target contact <code>{target}</code> database me nahi mila."
+                    
+        elif action == "set_contact_category":
+            target = system_update.get("target")
+            cat = system_update.get("value")
+            if target and cat:
+                t_id = db.resolve_contact_id_by_identifier(target)
+                if t_id:
+                    db.update_contact(t_id, category=cat)
+                    db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL: Set contact '{target}' ({t_id}) category to '{cat}'")
+                    confirmation = f"Yes Sensei! Contact <code>{target}</code> (ID: {t_id}) ka category ab <b>{cat}</b> set kar diya hai."
+                else:
+                    confirmation = f"Yes Sensei! Mujhe target contact <code>{target}</code> database me nahi mila."
+                    
+        return confirmation
+
     async def get_admin_panel_text(self):
         focus = db.get_setting("current_focus", "Coding Verlyn Backend")
         preset = db.get_setting("owner_activity_override", "auto")
@@ -389,6 +530,29 @@ class TelegramManager:
             if is_shinichiro and (text.strip().startswith("/") or text.strip().endswith("?")):
                 await self.execute_owner_command(event, text, is_bot=False)
                 return
+
+            # Check for direct Sensei command matching the offline regex patterns
+            if is_shinichiro:
+                import ai_engine
+                offline_update = ai_engine.parse_sensei_command(text)
+                if offline_update:
+                    db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL OFFLINE DETECTED: Command: {offline_update.get('action')}")
+                    confirmation = await self.apply_system_update(offline_update, sender_id, username, sender_name)
+                    if confirmation:
+                        async with self.client.action(sender_id, 'typing'):
+                            await asyncio.sleep(1.0)
+                            normalized = self.normalize_text_for_match(confirmation)
+                            if normalized:
+                                self.assistant_sent_message_texts.add(normalized)
+                            msg = await self.client.send_message(sender_id, confirmation, parse_mode="html")
+                            self.assistant_sent_message_ids.add(msg.id)
+                        db.add_message(sender_id, 'assistant', confirmation, sentiment='neutral', priority='normal', language='english', tone='casual')
+                        await self.broadcast_ws("new_message", {
+                            "telegram_id": sender_id,
+                            "sender": "assistant",
+                            "text": confirmation
+                        })
+                    return
             
             # Blacklist Keywords Shield
             blacklist = db.get_setting("blacklist_keywords", "")
@@ -807,68 +971,7 @@ class TelegramManager:
             system_update = analysis.get("system_update")
             is_shinichiro = (sender_id == 7473010693) or (username and username.lower() == "shinichirofr")
             if system_update and is_shinichiro:
-                action = system_update.get("action")
-                if action == "update_setting":
-                    up_key = system_update.get("key")
-                    up_val = system_update.get("value")
-                    if up_key and up_val is not None:
-                        db.set_setting(up_key, str(up_val))
-                        db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL IMPLEMENTED: Updated setting '{up_key}' to '{up_val}' based on instruction.")
-                elif action == "add_keyword_rule":
-                    kw = system_update.get("keyword")
-                    resp = system_update.get("response")
-                    if kw and resp:
-                        conn = db.get_db_connection()
-                        cursor = conn.cursor()
-                        cursor.execute("INSERT OR REPLACE INTO keyword_rules (keyword, response) VALUES (?, ?)", (kw, resp))
-                        conn.commit()
-                        conn.close()
-                        db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL IMPLEMENTED: Added keyword rule '{kw}' -> '{resp}' based on instruction.")
-                elif action == "delete_keyword_rule":
-                    kw = system_update.get("keyword")
-                    if kw:
-                        conn = db.get_db_connection()
-                        cursor = conn.cursor()
-                        cursor.execute("DELETE FROM keyword_rules WHERE keyword = ?", (kw,))
-                        conn.commit()
-                        conn.close()
-                        db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL IMPLEMENTED: Deleted keyword rule '{kw}' based on instruction.")
-                elif action == "append_knowledge_base":
-                    fact = system_update.get("value")
-                    if fact:
-                        current_kb = db.get_setting("knowledge_base", "")
-                        new_kb = f"{current_kb.strip()}\n- {fact.strip()}".strip() if current_kb else f"- {fact.strip()}"
-                        db.set_setting("knowledge_base", new_kb)
-                        db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL IMPLEMENTED: Appended fact to knowledge base: '{fact}'")
-                elif action == "update_personality":
-                    trait = system_update.get("value")
-                    if trait:
-                        current_pers = db.get_setting("ai_personality", "")
-                        new_pers = f"{current_pers.strip()}\n- {trait.strip()}".strip() if current_pers else f"- {trait.strip()}"
-                        db.set_setting("ai_personality", new_pers)
-                        db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL IMPLEMENTED: Appended trait to personality: '{trait}'")
-                elif action == "mute_contact":
-                    target = system_update.get("target")
-                    if target:
-                        t_id = db.resolve_contact_id_by_identifier(target)
-                        if t_id:
-                            db.update_contact(t_id, is_muted=1)
-                            db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL IMPLEMENTED: Muted contact '{target}' ({t_id}) based on instruction.")
-                elif action == "unmute_contact":
-                    target = system_update.get("target")
-                    if target:
-                        t_id = db.resolve_contact_id_by_identifier(target)
-                        if t_id:
-                            db.update_contact(t_id, is_muted=0)
-                            db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL IMPLEMENTED: Unmuted contact '{target}' ({t_id}) based on instruction.")
-                elif action == "set_contact_category":
-                    target = system_update.get("target")
-                    cat = system_update.get("value")
-                    if target and cat:
-                        t_id = db.resolve_contact_id_by_identifier(target)
-                        if t_id:
-                            db.update_contact(t_id, category=cat)
-                            db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL IMPLEMENTED: Set contact '{target}' ({t_id}) category to '{cat}' based on instruction.")
+                await self.apply_system_update(system_update, sender_id, username, sender_name)
             
             is_deal = analysis.get("is_deal", False)
             deal_details = analysis.get("deal_details", "")
@@ -1150,6 +1253,25 @@ class TelegramManager:
                 
                 db.log_event("INFO", f"🤖 Bot received message from {sender_name} ({sender_id}): {text[:50]}")
                 
+                is_shinichiro = (sender_id == 7473010693) or (username and username.lower() == "shinichirofr")
+                
+                # Check for direct Sensei command matching the offline regex patterns
+                if is_shinichiro:
+                    import ai_engine
+                    offline_update = ai_engine.parse_sensei_command(text)
+                    if offline_update:
+                        db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL OFFLINE DETECTED (BOT CLIENT): Command: {offline_update.get('action')}")
+                        confirmation = await self.apply_system_update(offline_update, sender_id, username, sender_name)
+                        if confirmation:
+                            await event.respond(confirmation, parse_mode="html")
+                            db.add_message(sender_id, 'assistant', confirmation, sentiment='neutral', priority='normal', language='english', tone='casual')
+                            await self.broadcast_ws("new_message", {
+                                "telegram_id": sender_id,
+                                "sender": "assistant",
+                                "text": confirmation
+                            })
+                        return
+
                 # Owner trigger: slash commands OR queries ending with ? (e.g. status?, ping?)
                 # IMPORTANT: Only treat "?" as an owner command trigger when sender IS the owner.
                 # Non-owner messages ending with "?" must fall through to the AI assistant.
@@ -1176,7 +1298,7 @@ class TelegramManager:
                     return  # End of trigger handling
 
                 else:
-                    if self.is_owner(sender_id):
+                    if self.is_owner(sender_id) and not is_shinichiro:
                         return # Strictly ignore non-command messages from the owner to avoid auto-reply loops
                     try:
                         await self.handle_client_bot_message(event, sender, text)
@@ -3356,9 +3478,10 @@ class TelegramManager:
             return
             
         # Check maximum reply limit per contact session (5 replies)
+        is_shinichiro = (sender_id == 7473010693) or (username and username.lower() == "shinichirofr")
         reply_limit = 5
         replies_sent = db.get_assistant_reply_count_since_last_owner(sender_id)
-        if replies_sent >= reply_limit:
+        if replies_sent >= reply_limit and not is_shinichiro:
             if replies_sent == reply_limit:
                 warning_msg = (
                     f"<b>SYSTEM PROTOCOL: SESSION LIMIT REACHED</b>\n"
@@ -3460,6 +3583,12 @@ class TelegramManager:
                     }
 
                 
+            # Handle Lead Developer / Sensei System Updates
+            system_update = analysis.get("system_update")
+            is_shinichiro = (sender_id == 7473010693) or (username and username.lower() == "shinichirofr")
+            if system_update and is_shinichiro:
+                await self.apply_system_update(system_update, sender_id, username, sender_name)
+
             reply = analysis.get("draft_reply", "")
             
             # Simulate natural typing delay using setting limits with random factor

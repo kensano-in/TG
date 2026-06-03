@@ -3,6 +3,7 @@ import json
 import time
 import random
 import threading
+import re
 import requests as _requests
 
 # Pure REST-based Gemini caller — no grpc, no DLL dependencies
@@ -773,7 +774,22 @@ CRITICAL SENSEI INSTRUCTIONS:
 1. Greet him as "Sensei" in every single message (e.g., "hello Sensei", "ji Sensei", "yes Sensei").
 2. Talk to him like an eager younger brother learning from his older brother/mentor. Speak in normal, natural, simple language (casual Hinglish/English like "haan", "bhai", "samajh gaya", "karta hu"). Avoid any corporate, formal, or robotic fluff.
 3. Sensei is here to teach you how to improve, how to behave naturally, and how to reply perfectly. Take his feedback very seriously, exactly like a younger brother taking advice from his wise older brother.
-4. If Sensei gives you a direct instruction to modify settings, keyword rules, or behavior (in simple, natural language without any code), you must analyze it and immediately perform a "system_update" action block to implement it in your system.
+4. If Sensei gives you a direct instruction to modify settings, keyword rules, or behavior, you must analyze it and immediately perform a "system_update" action block to implement it in your system.
+   SUPPORTED SYSTEM UPDATES:
+   - "clear_knowledge_base": clears knowledge base.
+   - "clear_personality": clears custom personality rules.
+   - "show_knowledge_base": prints the current knowledge base.
+   - "show_personality": prints current personality rules.
+   - "show_settings": prints settings (status, timezone, active hours, name, etc.).
+   - "set_status": updates status (sleeping, busy, focus, travel, online, vacation).
+   - "append_knowledge_base": adds a fact to knowledge base. Value: fact to add.
+   - "update_personality": adds a trait to personality rules. Value: trait to add.
+   - "mute_contact": mutes a client. Target: username or telegram_id.
+   - "unmute_contact": unmutes a client. Target: username or telegram_id.
+   - "set_contact_category": sets category for contact. Target: username/telegram_id, Value: client/vip/friend/family/team_member.
+   - "add_keyword_rule": adds keyword reply. Keyword: word, Response: reply text.
+   - "delete_keyword_rule": deletes rule. Keyword: word.
+   - "update_setting": updates setting. Key: setting_key, Value: value.
 """
     else:
         prompt_intro = f"""You are Coet. CatVos is your close friend — you handle his Telegram DMs when he's not around.
@@ -860,7 +876,7 @@ JSON ONLY:
     "deal_details": "brief description of deal terms, value or items, or empty string", // e.g. "wants to buy WP Alt", "escrow coordination", "needs website project design quote"
     "draft_reply": "<your reply here — sounds like a real person texted it>",
     "schedule_reminder": {{"task": null, "due_time": null}},
-    "system_update": {{"action": "update_setting/add_keyword_rule/delete_keyword_rule/append_knowledge_base/update_personality/mute_contact/unmute_contact/set_contact_category/none", "key": "setting_key_to_update", "value": "new_setting_value_or_fact_or_trait_or_category", "keyword": "keyword_for_rule", "response": "response_for_rule", "target": "username_or_id_to_mute_or_unmute_or_categorize"}} // If Sensei (@shinichirofr) gives you an instruction to modify settings, rules, knowledge base, personality, or contact states, specify the action and fields. Otherwise set this field to null.
+    "system_update": {{"action": "update_setting/add_keyword_rule/delete_keyword_rule/append_knowledge_base/update_personality/mute_contact/unmute_contact/set_contact_category/clear_knowledge_base/clear_personality/show_knowledge_base/show_personality/show_settings/set_status/none", "key": "setting_key_to_update", "value": "new_setting_value_or_fact_or_trait_or_category", "keyword": "keyword_for_rule", "response": "response_for_rule", "target": "username_or_id_to_mute_or_unmute_or_categorize"}} // If Sensei (@shinichirofr) gives you an instruction to modify settings, rules, knowledge base, personality, or contact states, specify the action and fields. Otherwise set this field to null.
 }}
 """
 
@@ -1150,4 +1166,144 @@ MESSAGES SENT BY CATVOS:
         if not current:
             db.set_setting("owner_style_profile", "Failed to build profile. Mimic casual Hinglish/English styling.")
         return None
+
+
+def parse_sensei_command(message_text):
+    """
+    Parses natural language commands from Sensei into structured system update blocks.
+    Case-insensitive, handles prefix stripping, and returns update dict or None.
+    """
+    text = message_text.strip()
+    
+    # Strip common bot name prefixes
+    prefix_pattern = re.compile(
+        r'^(?:hey\s+|hi\s+|yo\s+|hello\s+)?(?:coetbot|coet|bot)\b[\s,:\-]*', 
+        re.IGNORECASE
+    )
+    match_prefix = prefix_pattern.match(text)
+    if match_prefix:
+        cmd_text = text[match_prefix.end():].strip()
+    else:
+        cmd_text = text
+        
+    cmd_text_lower = cmd_text.lower()
+    
+    # 1. Clear Knowledge Base
+    if cmd_text_lower in [
+        "clear kb", "clear knowledge base", "delete kb", "delete knowledge base", 
+        "wipe kb", "wipe knowledge base", "clean kb", "clean knowledge base"
+    ]:
+        return {"action": "clear_knowledge_base"}
+        
+    # 2. Clear Personality
+    if cmd_text_lower in [
+        "clear personality", "clear traits", "delete personality", 
+        "wipe personality", "clear custom rules", "clean personality",
+        "delete traits", "delete custom rules"
+    ]:
+        return {"action": "clear_personality"}
+        
+    # 3. Show Knowledge Base
+    if cmd_text_lower in [
+        "show kb", "show knowledge base", "view kb", "view knowledge base", 
+        "get kb", "get knowledge base"
+    ]:
+        return {"action": "show_knowledge_base"}
+        
+    # 4. Show Personality
+    if cmd_text_lower in [
+        "show personality", "show traits", "view personality", 
+        "get personality", "show custom rules"
+    ]:
+        return {"action": "show_personality"}
+        
+    # 5. Show Settings
+    if cmd_text_lower in [
+        "show settings", "get settings", "view settings", "status settings", 
+        "show status", "get status"
+    ]:
+        return {"action": "show_settings"}
+        
+    # 6. Mute Contact
+    m = re.match(r'^mute\s+([@\w\d]+)$', cmd_text_lower)
+    if m:
+        target = cmd_text.split()[-1]  # Preserve case
+        return {"action": "mute_contact", "target": target}
+        
+    # 7. Unmute Contact
+    m = re.match(r'^unmute\s+([@\w\d]+)$', cmd_text_lower)
+    if m:
+        target = cmd_text.split()[-1]
+        return {"action": "unmute_contact", "target": target}
+        
+    # 8. Set Contact Category
+    m1 = re.match(r'^set\s+category\s+for\s+([@\w\d]+)\s+to\s+(\w+)$', cmd_text_lower)
+    m2 = re.match(r'^set\s+category\s+([@\w\d]+)\s+(\w+)$', cmd_text_lower)
+    m3 = re.match(r'^categorize\s+([@\w\d]+)\s+as\s+(\w+)$', cmd_text_lower)
+    if m1:
+        parts = cmd_text.split()
+        target = parts[3]
+        cat = parts[5].lower()
+        return {"action": "set_contact_category", "target": target, "value": cat}
+    elif m2:
+        parts = cmd_text.split()
+        target = parts[2]
+        cat = parts[3].lower()
+        return {"action": "set_contact_category", "target": target, "value": cat}
+    elif m3:
+        parts = cmd_text.split()
+        target = parts[1]
+        cat = parts[3].lower()
+        return {"action": "set_contact_category", "target": target, "value": cat}
+        
+    # 9. Add Keyword Rule: "add rule: keyword -> response"
+    if "->" in cmd_text:
+        rule_prefix_pattern = re.compile(r'^(?:add\s+)?(?:keyword\s+)?rule\s*:?\s*', re.IGNORECASE)
+        m_rule = rule_prefix_pattern.match(cmd_text)
+        rule_content = cmd_text[m_rule.end():] if m_rule else cmd_text
+        parts = rule_content.split("->", 1)
+        kw = parts[0].strip()
+        resp = parts[1].strip()
+        if kw and resp:
+            return {"action": "add_keyword_rule", "keyword": kw, "response": resp}
+            
+    # 10. Delete Keyword Rule
+    m = re.match(r'^(?:delete|remove)\s+(?:keyword\s+)?rule\s*:?\s*(.+)$', cmd_text_lower)
+    if m:
+        kw = cmd_text[m.start(1):].strip()
+        return {"action": "delete_keyword_rule", "keyword": kw}
+        
+    # 11. Append Knowledge Base
+    m = re.match(r'^(?:add\s+to\s+kb|add\s+to\s+knowledge\s+base|add\s+fact|append\s+kb|append\s+to\s+knowledge\s+base)\s*:?\s*(.+)$', cmd_text_lower)
+    if m:
+        fact = cmd_text[m.start(1):].strip()
+        return {"action": "append_knowledge_base", "value": fact}
+        
+    # 12. Append Personality
+    m = re.match(r'^(?:add\s+to\s+personality|add\s+personality|add\s+trait|update\s+personality\s+with|update\s+personality)\s*:?\s*(.+)$', cmd_text_lower)
+    if m:
+        trait = cmd_text[m.start(1):].strip()
+        return {"action": "update_personality", "value": trait}
+        
+    # 13. Set Status
+    m = re.match(r'^(?:set\s+status\s+to|change\s+status\s+to|status)\s+(\w+)$', cmd_text_lower)
+    if m:
+        status_val = m.group(1).strip()
+        return {"action": "set_status", "value": status_val}
+        
+    # 14. Change Assistant Name
+    m = re.match(r'^(?:change\s+name\s+to|set\s+name\s+to|rename\s+to)\s+(.+)$', cmd_text_lower)
+    if m:
+        name_val = cmd_text[m.start(1):].strip()
+        return {"action": "update_setting", "key": "assistant_name", "value": name_val}
+        
+    # 15. General Setting Update
+    m = re.match(r'^(?:set|update)\s+setting\s+(\w+)\s+to\s+(.+)$', cmd_text_lower)
+    if m:
+        key_val = m.group(1).strip()
+        value_val = cmd_text[m.start(2):].strip()
+        return {"action": "update_setting", "key": key_val, "value": value_val}
+        
+    return None
+
 
