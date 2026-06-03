@@ -358,6 +358,8 @@ function App() {
   });
   const [dealMsgGenerated, setDealMsgGenerated] = useState('');
   const [dealMsgCopied, setDealMsgCopied] = useState(false);
+  const [dealDirectSendStatus, setDealDirectSendStatus] = useState('');
+  const [isDealDirectSending, setIsDealDirectSending] = useState(false);
 
   const playChime = (type = 'message') => {
     if (!audibleAlerts) return;
@@ -8175,6 +8177,43 @@ Thank you for choosing ${f.store_name || 'us'} 🤍`;
             setDealMsgGenerated(msg);
           };
 
+          const handleDirectSend = async () => {
+            const f = dealMsgFields;
+            if (!f.buyer_username) {
+              setDealDirectSendStatus('Error: Missing buyer username');
+              return;
+            }
+            if (!dealMsgGenerated) {
+              setDealDirectSendStatus('Error: Generate message first');
+              return;
+            }
+            setIsDealDirectSending(true);
+            setDealDirectSendStatus('Sending...');
+            try {
+              const res = await fetch(`${API_BASE}/api/admin/send-direct-message`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                },
+                body: JSON.stringify({
+                  target_username: f.buyer_username,
+                  message: dealMsgGenerated
+                })
+              });
+              const data = await res.json();
+              if (res.ok && data.status === 'success') {
+                setDealDirectSendStatus('Message Sent Successfully!');
+              } else {
+                setDealDirectSendStatus(`Error: ${data.detail || data.message || 'Send failed'}`);
+              }
+            } catch (error) {
+              setDealDirectSendStatus(`Error: ${error.message}`);
+            } finally {
+              setIsDealDirectSending(false);
+            }
+          };
+
           return (
             <div style={{ marginTop: '24px', background: 'linear-gradient(135deg,rgba(124,77,255,0.06),rgba(96,165,250,0.04))', border: '1px solid rgba(124,77,255,0.2)', borderRadius: '20px', padding: '28px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
@@ -8238,32 +8277,92 @@ Thank you for choosing ${f.store_name || 'us'} 🤍`;
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h4 style={{ fontSize: '0.85rem', color: '#60a5fa', fontWeight: 700 }}>Live Preview</h4>
                     {dealMsgGenerated && (
-                      <div style={{ display: 'flex', gap: '8px' }}>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        {dealDirectSendStatus && (
+                          <span style={{ fontSize: '0.72rem', color: dealDirectSendStatus.includes('Error') ? '#fb7185' : '#34d399', fontWeight: 600 }}>
+                            {dealDirectSendStatus}
+                          </span>
+                        )}
+                        <button
+                          onClick={handleDirectSend}
+                          disabled={isDealDirectSending}
+                          style={{ padding: '5px 14px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700, cursor: isDealDirectSending ? 'wait' : 'pointer', background: 'rgba(124,77,255,0.15)', border: '1px solid rgba(124,77,255,0.4)', color: '#a78bfa', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                          {isDealDirectSending ? 'Sending...' : 'Direct Send'}
+                        </button>
                         <button
                           onClick={() => { navigator.clipboard.writeText(dealMsgGenerated); setDealMsgCopied(true); setTimeout(() => setDealMsgCopied(false), 2500); }}
                           style={{ padding: '5px 14px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', background: dealMsgCopied ? 'rgba(52,211,153,0.15)' : 'rgba(96,165,250,0.1)', border: `1px solid ${dealMsgCopied ? 'rgba(52,211,153,0.4)' : 'rgba(96,165,250,0.3)'}`, color: dealMsgCopied ? '#34d399' : '#60a5fa' }}>
-                          {dealMsgCopied ? 'Copied!' : 'Copy Message'}
+                          {dealMsgCopied ? 'Copied!' : 'Copy'}
                         </button>
                       </div>
                     )}
                   </div>
-                  <div style={{ flex: 1, minHeight: '520px', background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(124,77,255,0.15)', borderRadius: '14px', padding: '16px', overflowY: 'auto', position: 'relative' }}>
-                    {dealMsgGenerated ? (
-                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                        <div style={{ maxWidth: '85%', background: 'linear-gradient(135deg,#1a472a,#2d6a4f)', borderRadius: '14px 14px 4px 14px', padding: '14px 16px', fontSize: '0.78rem', color: '#d1fae5', lineHeight: 1.75, whiteSpace: 'pre-wrap', fontFamily: '"SF Pro Text", system-ui, sans-serif', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>
-                          {dealMsgGenerated}
+                  <div style={{ flex: 1, minHeight: '520px', background: 'linear-gradient(180deg, #0f172a 0%, #1e293b 100%)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '24px', padding: '0', overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.1)' }}>
+                    
+                    {/* Telegram Chat Header Mockup */}
+                    <div style={{ padding: '14px 20px', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: '12px', backdropFilter: 'blur(10px)' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'linear-gradient(135deg, #a78bfa, #7c4dff)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '1.2rem', boxShadow: '0 0 15px rgba(124,77,255,0.4)' }}>
+                        {dealMsgFields.buyer_username ? dealMsgFields.buyer_username.charAt(0).toUpperCase() : '?'}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '0.9rem', color: '#f8fafc', fontWeight: 700 }}>
+                          {dealMsgFields.buyer_username || 'Buyer'}
                         </div>
+                        <div style={{ fontSize: '0.75rem', color: '#34d399', fontWeight: 600 }}>online</div>
                       </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', gap: '12px', paddingTop: '40px' }}>
-                        <div style={{ fontSize: '2rem', opacity: 0.3 }}>💬</div>
-                        <p style={{ fontSize: '0.82rem', textAlign: 'center' }}>Fill in the fields and click<br /><b style={{ color: '#a78bfa' }}>Generate Pure Aura Message</b></p>
+                      <div style={{ display: 'flex', gap: '12px', color: 'var(--text-muted)' }}>
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
                       </div>
-                    )}
+                    </div>
+
+                    {/* Chat Body */}
+                    <div style={{ padding: '20px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                      {dealMsgGenerated ? (
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', animation: 'fadeInUp 0.4s ease-out' }}>
+                          <div style={{ maxWidth: '85%', background: 'linear-gradient(135deg, rgba(30,58,138,0.6), rgba(49,46,129,0.8))', backdropFilter: 'blur(10px)', border: '1px solid rgba(124,77,255,0.3)', borderRadius: '18px 18px 4px 18px', padding: '16px 20px', fontSize: '0.85rem', color: '#e2e8f0', lineHeight: 1.6, whiteSpace: 'pre-wrap', fontFamily: '"Inter", "SF Pro Text", system-ui, sans-serif', boxShadow: '0 10px 25px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)' }}>
+                            {dealMsgGenerated}
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px', alignItems: 'center', gap: '4px' }}>
+                               <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.4)' }}>
+                                 {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                               </span>
+                               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: '-8px' }}><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', gap: '16px', paddingTop: '60px' }}>
+                          <div style={{ fontSize: '3rem', opacity: 0.2, filter: 'drop-shadow(0 0 20px rgba(124,77,255,0.5))' }}>🔮</div>
+                          <div style={{ textAlign: 'center', background: 'rgba(255,255,255,0.03)', padding: '20px', borderRadius: '16px', border: '1px dashed rgba(255,255,255,0.1)' }}>
+                            <h5 style={{ color: '#e2e8f0', fontSize: '0.9rem', marginBottom: '8px' }}>Pure Aura Output Empty</h5>
+                            <p style={{ fontSize: '0.75rem', lineHeight: 1.5 }}>Fill out the required information and<br/>ignite the generator to preview.</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   {dealMsgGenerated && (
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', padding: '10px 14px', background: 'rgba(124,77,255,0.06)', borderRadius: '8px', border: '1px solid rgba(124,77,255,0.12)' }}>
-                      Message length: <b style={{ color: '#a78bfa' }}>{dealMsgGenerated.length}</b> characters &bull; Estimated parts: <b style={{ color: '#a78bfa' }}>{Math.ceil(dealMsgGenerated.length / 4096)}</b> Telegram message(s)
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 18px', background: 'rgba(0,0,0,0.25)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.05)', boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.3)' }}>
+                      <div style={{ display: 'flex', gap: '16px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Word Count</span>
+                          <span style={{ fontSize: '0.85rem', color: '#f8fafc', fontWeight: 700 }}>{dealMsgGenerated.split(/\s+/).length}</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Read Time</span>
+                          <span style={{ fontSize: '0.85rem', color: '#f8fafc', fontWeight: 700 }}>{Math.ceil(dealMsgGenerated.split(/\s+/).length / 200)} min</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Aura Level</span>
+                          <span style={{ fontSize: '0.85rem', color: '#a78bfa', fontWeight: 700 }}>100% PURE</span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', background: 'rgba(16,185,129,0.1)', borderRadius: '20px', border: '1px solid rgba(16,185,129,0.2)' }}>
+                        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#34d399', boxShadow: '0 0 8px #34d399' }} />
+                        <span style={{ fontSize: '0.7rem', color: '#34d399', fontWeight: 700 }}>Spam Score: Safe</span>
+                      </div>
                     </div>
                   )}
                 </div>

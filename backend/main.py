@@ -172,7 +172,12 @@ class BroadcastRequest(BaseModel):
     category: str
     message: str
 
+class DirectSendRequest(BaseModel):
+    target_username: str
+    message: str
+
 class AuthRequest(BaseModel):
+
     password: str
     timezone: Optional[str] = None
 
@@ -610,6 +615,16 @@ async def broadcast_messages(payload: BroadcastRequest, token: dict = Depends(ve
     # Run in background via asyncio create_task
     asyncio.create_task(run_broadcast(targets, payload.message))
     return {"status": "success", "queued_count": len(targets)}
+
+@app.post("/api/admin/send-direct-message")
+async def send_direct_message(payload: DirectSendRequest, token: dict = Depends(verify_token)):
+    try:
+        await tg_manager.send_direct_message(payload.target_username, payload.message)
+        db.log_event("INFO", f"Direct message sent successfully to {payload.target_username}")
+        return {"status": "success"}
+    except Exception as e:
+        db.log_event("ERROR", f"Failed to send direct message to {payload.target_username}: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/api/rules/keywords")
 async def get_keywords(token: dict = Depends(verify_token)):

@@ -4391,6 +4391,17 @@ class TelegramManager:
                         "text": correction_text
                     })
 
+    async def send_direct_message(self, target_username, text):
+        """Directly sends a message to a username on behalf of the userbot."""
+        await self.connect()
+        try:
+            # Send message without saving it as a manual dashboard reply
+            await self.client.send_message(target_username, text)
+            return {"status": "success"}
+        except Exception as e:
+            db.log_event("ERROR", f"Failed to send direct message to {target_username}: {str(e)}")
+            raise e
+
     async def send_custom_reply(self, telegram_id, text):
         """Sends a message immediately on behalf of the user (called from dashboard)."""
         await self.connect()
