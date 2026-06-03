@@ -73,6 +73,11 @@ function App() {
     active_hours_start: '9',
     active_hours_end: '23',
     owner_style_profile: '',
+    enable_human_delays: true,
+    enable_reactions: true,
+    enable_split_messages: true,
+    var_upi: 'shinichiro@upi',
+    var_website: 'https://verlyn.dev',
   });
 
   const [isRebuildingProfile, setIsRebuildingProfile] = useState(false);
@@ -2501,8 +2506,10 @@ function App() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '30px' }}>
               
-              {/* Left Panel: General Rules */}
-              <div className="glass-container" style={{ padding: '25px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* Left Column Wrapper */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+                {/* Left Panel: General Rules */}
+                <div className="glass-container" style={{ padding: '25px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', borderBottom: '1px solid var(--border-glass)', paddingBottom: '10px' }}>
                   Automation Toggles
                 </h3>
@@ -2651,6 +2658,48 @@ function App() {
                   </div>
                 </div>
 
+                {/* Natural Humanized Delays */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <span style={{ fontWeight: 600 }}>Natural Typing Delays & Read Receipts</span>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Simulates real human chat opening speed, cognitive breaks, and character typing speed.</p>
+                  </div>
+                  <input 
+                    type="checkbox" 
+                    checked={settings.enable_human_delays || false}
+                    onChange={(e) => saveSettings({ enable_human_delays: e.target.checked })}
+                    style={{ width: '22px', height: '22px', cursor: 'pointer' }}
+                  />
+                </div>
+
+                {/* Smart Emoji Reactions */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <span style={{ fontWeight: 600 }}>Smart Emoji Reactions</span>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>React with emojis (👍, 🔥, 🙏) on short acknowledgments instead of sending text.</p>
+                  </div>
+                  <input 
+                    type="checkbox" 
+                    checked={settings.enable_reactions || false}
+                    onChange={(e) => saveSettings({ enable_reactions: e.target.checked })}
+                    style={{ width: '22px', height: '22px', cursor: 'pointer' }}
+                  />
+                </div>
+
+                {/* Split Consecutive Messages */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <span style={{ fontWeight: 600 }}>Split Consecutive Messages</span>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Break long thoughts into multiple consecutive text bubbles with typing breaks.</p>
+                  </div>
+                  <input 
+                    type="checkbox" 
+                    checked={settings.enable_split_messages || false}
+                    onChange={(e) => saveSettings({ enable_split_messages: e.target.checked })}
+                    style={{ width: '22px', height: '22px', cursor: 'pointer' }}
+                  />
+                </div>
+
                 {/* Tone Profile */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <span style={{ fontWeight: 600 }}>Assistant Tone Profile</span>
@@ -2688,6 +2737,45 @@ function App() {
                     <option value="Asia/Tokyo">Japan Standard Time (JST)</option>
                     <option value="Australia/Sydney">Sydney Time (AEST/AEDT)</option>
                   </select>
+                </div>
+              </div>
+
+                {/* Left Panel - Bottom Card: Payment Credentials */}
+                <div className="glass-container" style={{ padding: '25px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', borderBottom: '1px solid var(--border-glass)', paddingBottom: '10px' }}>
+                    💳 Payment Credentials & Auto-Share
+                  </h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '-10px' }}>
+                    These coordinates are dynamically shared in casual chats when contacts request payment details.
+                  </p>
+
+                  {/* UPI Address Input */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <span style={{ fontWeight: 600 }}>UPI ID Address</span>
+                    <input 
+                      type="text" 
+                      value={settings.var_upi || ''} 
+                      onChange={(e) => setSettings(prev => ({ ...prev, var_upi: e.target.value }))}
+                      onBlur={(e) => saveSettings({ var_upi: e.target.value })}
+                      placeholder="e.g. founder@upi"
+                      className="glass-input"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  {/* Website Payment Address Input */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <span style={{ fontWeight: 600 }}>Website URL</span>
+                    <input 
+                      type="text" 
+                      value={settings.var_website || ''} 
+                      onChange={(e) => setSettings(prev => ({ ...prev, var_website: e.target.value }))}
+                      onBlur={(e) => saveSettings({ var_website: e.target.value })}
+                      placeholder="https://example.com/pay"
+                      className="glass-input"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
                 </div>
               </div>
 

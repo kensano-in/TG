@@ -100,6 +100,11 @@ class SettingsUpdate(BaseModel):
     active_hours_end: Optional[str] = None
     assistant_name: Optional[str] = None
     owner_style_profile: Optional[str] = None
+    enable_human_delays: Optional[bool] = None
+    enable_reactions: Optional[bool] = None
+    enable_split_messages: Optional[bool] = None
+    var_upi: Optional[str] = None
+    var_website: Optional[str] = None
 
 class ManualReply(BaseModel):
     telegram_id: int
@@ -260,6 +265,11 @@ async def get_settings(token: dict = Depends(verify_token)):
         "active_hours_start": db.get_setting("active_hours_start", "9"),
         "active_hours_end": db.get_setting("active_hours_end", "23"),
         "owner_style_profile": db.get_setting("owner_style_profile", ""),
+        "enable_human_delays": db.get_setting("enable_human_delays", "1") == "1",
+        "enable_reactions": db.get_setting("enable_reactions", "1") == "1",
+        "enable_split_messages": db.get_setting("enable_split_messages", "1") == "1",
+        "var_upi": db.get_setting("var_upi", "shinichiro@upi"),
+        "var_website": db.get_setting("var_website", "https://verlyn.dev"),
     }
 
 @app.post("/api/settings")
@@ -323,6 +333,21 @@ async def update_settings(data: SettingsUpdate, token: dict = Depends(verify_tok
     if data.owner_style_profile is not None:
         db.set_setting("owner_style_profile", data.owner_style_profile)
         db.log_event("INFO", "Owner style DNA profile updated.")
+    if data.enable_human_delays is not None:
+        db.set_setting("enable_human_delays", "1" if data.enable_human_delays else "0")
+        db.log_event("INFO", f"System enable_human_delays setting updated to: {data.enable_human_delays}")
+    if data.enable_reactions is not None:
+        db.set_setting("enable_reactions", "1" if data.enable_reactions else "0")
+        db.log_event("INFO", f"System enable_reactions setting updated to: {data.enable_reactions}")
+    if data.enable_split_messages is not None:
+        db.set_setting("enable_split_messages", "1" if data.enable_split_messages else "0")
+        db.log_event("INFO", f"System enable_split_messages setting updated to: {data.enable_split_messages}")
+    if data.var_upi is not None:
+        db.set_setting("var_upi", data.var_upi)
+        db.log_event("INFO", f"System var_upi setting updated to: {data.var_upi}")
+    if data.var_website is not None:
+        db.set_setting("var_website", data.var_website)
+        db.log_event("INFO", f"System var_website setting updated to: {data.var_website}")
         
     return {"status": "success"}
 

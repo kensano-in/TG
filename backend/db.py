@@ -479,7 +479,12 @@ def init_db():
         ("reply_delay_min", "1.2"),
         ("reply_delay_max", "4.0"),
         ("active_hours_start", "9"),
-        ("active_hours_end", "23")
+        ("active_hours_end", "23"),
+        ("enable_human_delays", "1"),
+        ("enable_reactions", "1"),
+        ("enable_split_messages", "1"),
+        ("var_upi", "shinichiro@upi"),
+        ("var_website", "https://verlyn.dev")
     ]
     
     for key, val in default_settings:

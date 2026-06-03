@@ -409,6 +409,24 @@ def check_fast_path_query(message_text, status_mode="focus", chat_history=None, 
         return random.choice(replies), "services_check"
 
 
+    # Intent H: Payment Coordinates / UPI
+    is_payment_query = any(x in msg for x in ["upi", "payment", "bank", "pay", "send money", "how to pay", "pay link", "payment link", "upi id", "qr code", "qr"])
+    if is_payment_query:
+        upi_id = db.get_setting("var_upi", "shinichiro@upi")
+        website_url = db.get_setting("var_website", "https://verlyn.dev")
+        if is_hinglish:
+            replies = [
+                f"haan bhai, payment details: UPI ID '{upi_id}' hai. ya fir direct website se kar do: {website_url}. pay karke screenshot yahan bhej dena please!",
+                f"bhai payment UPI ID '{upi_id}' pe send kar do, ya fir site link use karo: {website_url}. payment confirmation screenshot share kar dena free hote hi CatVos check kar lega.",
+            ]
+        else:
+            replies = [
+                f"yep, you can send it to UPI ID: '{upi_id}' or pay directly via website: {website_url}. please share the receipt screenshot once done!",
+                f"here are the payment details: UPI ID: '{upi_id}' or website: {website_url}. drop the transaction receipt screenshot here once done!",
+            ]
+        return random.choice(replies), "payment_info"
+
+
     # Intent E: Basic Greetings
     if any(w in msg.split() for w in ["hi", "hello", "hey", "yo", "hii", "hiii", "heyy", "yoo", "sup", "wassup"]) or any(x in msg for x in ["kya hal", "kya chal", "how are you", "kya haal", "kese ho"]):
         if is_hinglish:
@@ -739,6 +757,8 @@ JSON ONLY:
     "tone": "casual/formal/angry/impatient/polite/urgent",
     "suggested_personality": "Casual Friend/Premium Executive/Firm & Direct/Empathetic Support/Warm & Helpful",
     "is_chitchat": true/false, // Set to true if the message is casual chitchat/banter/conversation/greetings only and NOT about active business deals, middleman services, pricing, stock, website coding, design, editing, or support.
+    "is_deal": true/false, // Set to true if the sender is discussing active business transactions, buy/sell request, pricing quotes, or middleman/escrow deal coordination.
+    "deal_details": "brief description of deal terms, value or items, or empty string", // e.g. "wants to buy WP Alt", "escrow coordination", "needs website project design quote"
     "draft_reply": "<your reply here — sounds like a real person texted it>",
     "schedule_reminder": {{"task": null, "due_time": null}}
 }}
@@ -757,13 +777,15 @@ JSON ONLY:
             is_hinglish = any(x in message_text.lower() for x in ["bhai", "kya", "hai", "kitna", "kese", "tu", "yaar", "haan"])
             return {
                 "sentiment": "neutral",
-                "priority": "important" if intent in ["mm_fees", "account_pricing"] else "normal",
+                "priority": "important" if intent in ["mm_fees", "account_pricing", "payment_info"] else "normal",
                 "suggested_category": sender_info.get('category', 'unknown'),
                 "relationship_insight": f"Inquired about {intent.replace('_', ' ')}",
                 "language": "hinglish" if is_hinglish else "english",
                 "tone": "casual",
                 "suggested_personality": "Warm & Helpful",
                 "is_chitchat": False,
+                "is_deal": intent in ["mm_fees", "account_pricing", "payment_info"],
+                "deal_details": f"Inquired about {intent.replace('_', ' ')}",
                 "draft_reply": reply_text,
                 "schedule_reminder": None
             }
@@ -779,6 +801,8 @@ JSON ONLY:
             "tone": "casual",
             "suggested_personality": "Warm & Helpful",
             "is_chitchat": False,
+            "is_deal": False,
+            "deal_details": "",
             "draft_reply": fallback,
             "schedule_reminder": None
         }

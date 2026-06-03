@@ -339,6 +339,13 @@ class TelegramManager:
             
         self.is_running = True
         
+        # Start periodic background tasks
+        try:
+            loop = asyncio.get_event_loop()
+            loop.create_task(self.periodic_style_rebuilder())
+        except Exception as e:
+            db.log_event("WARNING", f"Failed to start periodic style rebuilder: {e}")
+        
         # 1. Incoming Message Handler
         @self.client.on(events.NewMessage(incoming=True))
         async def on_incoming_message(event):
@@ -591,6 +598,9 @@ class TelegramManager:
 
             # Check for keyword rule matches first
             matched_rule = db.match_keyword_rule(text, sender_id=sender_id)
+            enable_human_delays = db.get_setting("enable_human_delays", "1") == "1"
+            enable_reactions = db.get_setting("enable_reactions", "1") == "1"
+
             if matched_rule:
                 matched_response = matched_rule["response"]
                 priority_val = matched_rule["priority"] or "normal"
@@ -616,29 +626,26 @@ class TelegramManager:
                             "draft": matched_response
                         })
                     else:
-                        async with self.client.action(sender_id, 'typing'):
-                            # Dynamic typing speed simulation using setting limits with random factor
-                            try:
-                                delay_min = float(db.get_setting("reply_delay_min", "1.2"))
-                                delay_max = float(db.get_setting("reply_delay_max", "4.0"))
-                            except Exception:
-                                delay_min, delay_max = 1.2, 4.0
-                            import random
-                            typing_delay = random.uniform(delay_min, delay_max)
-                            if typing_delay > 0:
-                                await asyncio.sleep(typing_delay)
-                            normalized = self.normalize_text_for_match(matched_response)
-                            if normalized:
-                                self.assistant_sent_message_texts.add(normalized)
-                            msg = await self.client.send_message(sender_id, matched_response)
-                            self.assistant_sent_message_ids.add(msg.id)
-                            db.add_message(sender_id, 'assistant', matched_response, sentiment='neutral', priority=priority_val, language='hinglish', tone='casual')
-                            db.log_event("INFO", f"Auto-replied (Keyword Rule) to {sender_name}: {matched_response}")
-                            await self.broadcast_ws("new_message", {
-                                "telegram_id": sender_id,
-                                "sender": "assistant",
-                                "text": matched_response
-                            })
+                        # Simulated human reading delay before marking read
+                        if enable_human_delays:
+                            read_delay = random.uniform(1.2, 2.8)
+                            await asyncio.sleep(read_delay)
+                        try:
+                            await event.message.mark_read()
+                        except Exception:
+                            pass
+                        # Cognitive pause before typing
+                        if enable_human_delays:
+                            await asyncio.sleep(random.uniform(0.4, 0.9))
+
+                        await self.send_humanized_replies(
+                            sender_id=sender_id,
+                            text=matched_response,
+                            detected_lang='hinglish',
+                            detected_tone='casual',
+                            priority_val=priority_val,
+                            sender_name=sender_name
+                        )
                             
                     # Trigger memory consolidation for keyword rule responses
                     asyncio.create_task(self.trigger_memory_consolidation(sender_id))
@@ -655,6 +662,56 @@ class TelegramManager:
                     )
                     self.send_bot_notification(alert_text)
                 return
+
+            # Check for simple acknowledgments and react if enable_reactions is active
+            text_clean = text.lower().strip().replace(".", "").replace("!", "").replace(",", "")
+            acknowledgments = {
+                "ok", "done", "got it", "thanks", "thank you", "nice", "cool", "thx", "yup", "yeah", 
+                "ok bhai", "bhai done", "sahi hai", "sahi h", "ok deal", "deal done", "done deal", 
+                "perfect", "okay", "hmmm", "hm", "hmm"
+            }
+            is_ack = text_clean in acknowledgments or (len(text_clean) <= 10 and any(w in text_clean for w in ["ok", "done", "thanks", "thx", "cool"]))
+            
+            if is_ack and enable_reactions:
+                # Mark as read after humanized delay
+                if enable_human_delays:
+                    read_delay = random.uniform(1.2, 3.2)
+                    db.log_event("INFO", f"Simulating read receipt delay of {read_delay:.2f}s for acknowledgment from {sender_name}")
+                    await asyncio.sleep(read_delay)
+                try:
+                    await event.message.mark_read()
+                    db.log_event("INFO", f"Marked acknowledgment message from {sender_name} as read.")
+                except Exception as e:
+                    db.log_event("WARNING", f"Failed to mark message read: {e}")
+                
+                # React to message
+                reaction_emoji = random.choice(["👍", "🔥", "🙏", "❤️", "👌"])
+                await asyncio.sleep(random.uniform(0.6, 1.2))
+                try:
+                    await event.message.react(reaction_emoji)
+                    db.log_event("INFO", f"Reacted with {reaction_emoji} to acknowledgment from {sender_name}.")
+                    db.add_message(sender_id, 'assistant', f"[Reacted {reaction_emoji}]", sentiment='neutral', priority='low', language='english', tone='casual')
+                    await self.broadcast_ws("new_message", {
+                        "telegram_id": sender_id,
+                        "sender": "assistant",
+                        "text": f"[Reacted {reaction_emoji}]"
+                    })
+                    return
+                except Exception as e:
+                    db.log_event("WARNING", f"Failed to react to message: {e}")
+                    # If reaction fails, continue to normal reply path
+
+            # Simulated human reading delay before marking read for AI path
+            if enable_human_delays:
+                read_delay = random.uniform(1.5, 3.5)
+                await asyncio.sleep(read_delay)
+            try:
+                await event.message.mark_read()
+            except Exception:
+                pass
+            # Cognitive pause before starting typing indicator for AI path
+            if enable_human_delays:
+                await asyncio.sleep(random.uniform(0.5, 1.2))
 
             # Get full chat history to feed Gemini
             history = db.get_chat_history(sender_id, limit=350)
@@ -751,6 +808,25 @@ class TelegramManager:
             suggested_personality = analysis.get("suggested_personality", "Warm & Helpful")
             reply_draft = analysis.get("draft_reply", "")
             schedule_rem = analysis.get("schedule_reminder")
+            
+            is_deal = analysis.get("is_deal", False)
+            deal_details = analysis.get("deal_details", "")
+            
+            if is_deal:
+                db.log_event("INFO", f"💰 Deal detected from {sender_name}: {deal_details}")
+                # Automatically upgrade category to client if unknown
+                if contact.get('category', 'unknown') == 'unknown':
+                    suggested_cat = 'client'
+                    db.update_contact(sender_id, category='client')
+                
+                alert_text = (
+                    f"💰 <b>Active Transaction/Deal Alert!</b>\n\n"
+                    f"<b>Contact:</b> {sender_name} (@{username})\n"
+                    f"<b>Deal Details:</b> {deal_details if deal_details else 'Discussion initiated'}\n"
+                    f"<b>Priority:</b> {priority.upper()}\n\n"
+                    f"<i>Review details in the Deals Pipeline on your manager dashboard.</i>"
+                )
+                self.send_bot_notification(alert_text)
             
             # Check for casual chitchat lockout trigger
             is_chitchat = analysis.get("is_chitchat", False)
@@ -860,38 +936,14 @@ class TelegramManager:
                     "draft": reply_draft
                 })
             else:
-                # Dynamic typing speed simulation using setting limits with random factor
-                try:
-                    delay_min = float(db.get_setting("reply_delay_min", "1.2"))
-                    delay_max = float(db.get_setting("reply_delay_max", "4.0"))
-                except Exception:
-                    delay_min, delay_max = 1.2, 4.0
-                import random
-                typing_delay = random.uniform(delay_min, delay_max)
-                elapsed = time.time() - start_time
-                if elapsed < typing_delay:
-                    await asyncio.sleep(typing_delay - elapsed)
-                    
-                # Track automated reply text before sending to prevent race condition in outgoing handler
-                normalized = self.normalize_text_for_match(reply_draft)
-                if normalized:
-                    self.assistant_sent_message_texts.add(normalized)
-                msg = await self.client.send_message(sender_id, reply_draft)
-                self.assistant_sent_message_ids.add(msg.id)
-                
-                # Note: We do NOT acknowledge the read to keep the message unread for the admin.
-                
-                # Save outgoing assistant message
-                db.add_message(sender_id, 'assistant', reply_draft, sentiment='neutral', priority='normal', language=detected_lang, tone=detected_tone)
-                db.log_event("INFO", f"Auto-replied to {sender_name}: {reply_draft}")
-                
-                # Broadcast outgoing message to UI
-                await self.broadcast_ws("new_message", {
-                    "telegram_id": sender_id,
-                    "sender": "assistant",
-                    "text": reply_draft
-                })
-                
+                await self.send_humanized_replies(
+                    sender_id=sender_id,
+                    text=reply_draft,
+                    detected_lang=detected_lang,
+                    detected_tone=detected_tone,
+                    priority_val=priority,
+                    sender_name=sender_name
+                )
                 # Trigger background memory consolidation for AI replies
                 asyncio.create_task(self.trigger_memory_consolidation(sender_id))
                     
@@ -929,6 +981,14 @@ class TelegramManager:
                 if matched_draft:
                     self.assistant_sent_message_texts.discard(matched_draft)
                     return
+
+            # Increment owner messages counter for dynamic DNA learning (if it's not a command)
+            if not is_dashboard_reply and not (text.strip().startswith("/") or text.strip().endswith("?")):
+                try:
+                    current_val = int(db.get_setting("owner_new_messages_since_rebuild", "0"))
+                    db.set_setting("owner_new_messages_since_rebuild", str(current_val + 1))
+                except Exception:
+                    pass
 
             # Intercept owner commands (starts with / or ends with ?)
             # Only intercept if it's NOT a manual response sent from the dashboard
@@ -3363,6 +3423,168 @@ class TelegramManager:
                     f"<i>They have contacted you through the bot. Open the manager dashboard.</i>"
                 )
                 self.send_bot_notification(alert_text)
+
+    async def periodic_style_rebuilder(self):
+        """Periodically rebuild the owner style profile every 2 hours if new messages are detected."""
+        db.log_event("INFO", "Periodic Owner Style DNA Rebuilder task started.")
+        while True:
+            try:
+                await asyncio.sleep(7200) # 2 hours
+                new_msgs_count = int(db.get_setting("owner_new_messages_since_rebuild", "0"))
+                if new_msgs_count > 0:
+                    db.log_event("INFO", f"Triggering background Owner Style DNA rebuild based on {new_msgs_count} new messages...")
+                    import threading
+                    threading.Thread(target=ai_engine.rebuild_owner_style_profile, daemon=True).start()
+                    db.set_setting("owner_new_messages_since_rebuild", "0")
+                else:
+                    db.log_event("INFO", "No new owner messages since last style profile rebuild. Skipping.")
+            except Exception as e:
+                db.log_event("ERROR", f"Error in periodic style rebuilder task: {e}")
+
+    async def send_humanized_replies(self, sender_id, text, detected_lang, detected_tone, priority_val, sender_name):
+        """
+        Sends message(s) simulating natural human texting flows:
+        - Splits long or multi-paragraph messages into consecutive messages if enabled.
+        - Calculates typing duration based on character length.
+        - Toggles delays based on configuration settings.
+        - Simulates a rare QWERTY keyboard distance typo and correction.
+        """
+        import random
+        import re
+        import asyncio
+        import time as _time
+        
+        # Load humanization settings
+        enable_human_delays = db.get_setting("enable_human_delays", "1") == "1"
+        enable_split_messages = db.get_setting("enable_split_messages", "1") == "1"
+        
+        # 1. Split replies by double newline or sentences if long and enabled
+        parts = []
+        if enable_split_messages:
+            if "\n\n" in text:
+                raw_parts = text.split("\n\n")
+                for p in raw_parts:
+                    p_strip = p.strip()
+                    if p_strip:
+                        parts.append(p_strip)
+            elif len(text) > 120:
+                sentence_ends = re.split(r'(?<=[.!?])\s+', text)
+                current_part = ""
+                for s in sentence_ends:
+                    if len(current_part) + len(s) < 100:
+                        current_part += (" " if current_part else "") + s
+                    else:
+                        if current_part:
+                            parts.append(current_part)
+                        current_part = s
+                if current_part:
+                    parts.append(current_part)
+            else:
+                parts.append(text)
+        else:
+            parts.append(text)
+            
+        # Helper to generate a realistic QWERTY keyboard swap typo
+        def _get_qwerty_typo(part_text):
+            qwerty_swaps = {
+                'a': 's', 'b': 'n', 'c': 'v', 'd': 's', 'e': 'r', 'f': 'g', 'g': 'h', 'h': 'j', 'i': 'o', 
+                'j': 'k', 'k': 'l', 'l': 'k', 'm': 'n', 'n': 'b', 'o': 'p', 'p': 'o', 'q': 'w', 'r': 't', 
+                's': 'd', 't': 'y', 'u': 'i', 'v': 'c', 'w': 'e', 'x': 'c', 'y': 't', 'z': 'x'
+            }
+            words = part_text.split()
+            candidates = [w for w in words if w.isalpha() and 4 <= len(w) <= 8]
+            if not candidates:
+                return None, None, part_text
+                
+            target = random.choice(candidates)
+            if len(target) < 4:
+                return None, None, part_text
+                
+            # Swaps a character in the middle
+            idx = random.randint(1, len(target) - 2)
+            char = target[idx]
+            if char in qwerty_swaps:
+                typo_char = qwerty_swaps[char]
+                typo_word = target[:idx] + typo_char + target[idx+1:]
+            else:
+                # swap adjacent letters
+                typo_word = target[:idx] + target[idx+1] + target[idx] + target[idx+2:]
+                
+            typo_part = part_text.replace(target, typo_word, 1)
+            return typo_word, target, typo_part
+
+        # 2. Process each part sequentially
+        for part_idx, part in enumerate(parts):
+            if enable_human_delays:
+                if part_idx == 0:
+                    await asyncio.sleep(random.uniform(0.4, 0.9))
+                else:
+                    await asyncio.sleep(random.uniform(1.2, 2.2)) # longer delay for double text typing gap
+            else:
+                await asyncio.sleep(0.05)
+                
+            async with self.client.action(sender_id, 'typing'):
+                if enable_human_delays:
+                    char_delay = len(part) * 0.025
+                    typing_delay = max(1.0, min(4.5, char_delay + random.uniform(-0.3, 0.4)))
+                    await asyncio.sleep(typing_delay)
+                else:
+                    await asyncio.sleep(0.1)
+                
+                typo_word = None
+                correction_word = None
+                typo_part = part
+                
+                # 4% chance for typo simulation
+                if random.random() < 0.04 and len(part) > 20:
+                    try:
+                        typo_w, corr_w, t_part = _get_qwerty_typo(part)
+                        if typo_w:
+                            typo_word = typo_w
+                            correction_word = corr_w
+                            typo_part = t_part
+                    except Exception:
+                        pass
+                            
+                normalized = self.normalize_text_for_match(typo_part)
+                if normalized:
+                    self.assistant_sent_message_texts.add(normalized)
+                    
+                msg = await self.client.send_message(sender_id, typo_part)
+                self.assistant_sent_message_ids.add(msg.id)
+                db.add_message(sender_id, 'assistant', typo_part, sentiment='neutral', priority=priority_val, language=detected_lang, tone=detected_tone)
+                db.log_event("INFO", f"Auto-replied (part {part_idx+1}/{len(parts)}) to {sender_name}: {typo_part}")
+                
+                await self.broadcast_ws("new_message", {
+                    "telegram_id": sender_id,
+                    "sender": "assistant",
+                    "text": typo_part
+                })
+                
+                if correction_word:
+                    # Typo correction delay
+                    if enable_human_delays:
+                        await asyncio.sleep(random.uniform(1.2, 1.8))
+                    else:
+                        await asyncio.sleep(0.2)
+                    correction_text = f"*{correction_word}"
+                    async with self.client.action(sender_id, 'typing'):
+                        if enable_human_delays:
+                            await asyncio.sleep(0.6)
+                        else:
+                            await asyncio.sleep(0.05)
+                    normalized_corr = self.normalize_text_for_match(correction_text)
+                    if normalized_corr:
+                        self.assistant_sent_message_texts.add(normalized_corr)
+                    msg_corr = await self.client.send_message(sender_id, correction_text)
+                    self.assistant_sent_message_ids.add(msg_corr.id)
+                    db.add_message(sender_id, 'assistant', correction_text, sentiment='neutral', priority=priority_val, language=detected_lang, tone=detected_tone)
+                    db.log_event("INFO", f"Sent typo correction to {sender_name}: {correction_text}")
+                    await self.broadcast_ws("new_message", {
+                        "telegram_id": sender_id,
+                        "sender": "assistant",
+                        "text": correction_text
+                    })
 
     async def send_custom_reply(self, telegram_id, text):
         """Sends a message immediately on behalf of the user (called from dashboard)."""
