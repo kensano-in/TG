@@ -30,6 +30,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Temporary public logs endpoint for diagnostics
+@app.get("/api/temp-logs")
+async def temp_logs():
+    try:
+        logs = db.get_logs(limit=100)
+        return {"status": "success", "logs": logs}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+# Temporary public settings endpoint for diagnostics
+@app.get("/api/temp-settings")
+async def temp_settings():
+    try:
+        conn = db.get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT key, value FROM settings")
+        rows = cursor.fetchall()
+        conn.close()
+        settings = {row[0] if not isinstance(row, dict) else row['key']: row[1] if not isinstance(row, dict) else row['value'] for row in rows}
+        return {"status": "success", "settings": settings}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 # Startup and shutdown lifecycle
 @app.on_event("startup")
 async def startup():
