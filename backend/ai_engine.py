@@ -348,12 +348,12 @@ def check_fast_path_query(message_text, status_mode="focus", chat_history=None, 
     if is_dev_query:
         if is_hinglish:
             reply = (
-                "main Coet hu, CatVos ka banda — uski messages handle karta hu. mujhe shinichiro ne banaya hai, woh lead developer hain (telegram: @shinichirofr).\n\n"
+                "main Coet hu, CatVos ka bhai — uski messages handle karta hu. mujhe shinichiro ne banaya hai, woh lead developer hain (telegram: @shinichirofr).\n\n"
                 "agar tujhe bhi kuch aisa chahiye apne account pe, toh seedha @shinichirofr se baat kar!"
             )
         else:
             reply = (
-                "I'm Coet — CatVos's guy, I handle his messages. I was built by shinichiro, the lead developer (telegram: @shinichirofr).\n\n"
+                "I'm Coet — CatVos's manager, I handle his messages. I was built by shinichiro, the lead developer (telegram: @shinichirofr).\n\n"
                 "if you want something like this set up on your account, hit up @shinichirofr directly!"
             )
         return reply, "developer_info"
@@ -364,13 +364,13 @@ def check_fast_path_query(message_text, status_mode="focus", chat_history=None, 
                                "coet", "u there", "you there", "hello?", "anyone", "koi hai", "koi h"]):
         if is_hinglish:
             replies = [
-                f"haan yaar main yahan hu! main Coet hu — CatVos ka banda, uski messages handle karta hu jab wo busy hota hai. {casual_status_hi} abhi. kya kaam tha?",
+                f"haan yaar main yahan hu! main Coet hu — CatVos ka bhai, uski messages handle karta hu jab wo busy hota hai. {casual_status_hi} abhi. kya kaam tha?",
                 f"ha bhai main hu! Coet — CatVos ka close associate. {casual_status_hi} abhi wo, main sambhal raha hu. bolo?",
                 f"present! main Coet hu, CatVos ka yaar. uske deals aur messages handle karta hu. kya chahiye tujhe?"
             ]
         else:
             replies = [
-                f"yeah I'm here! I'm Coet — CatVos's guy, I handle his messages when he's busy. he's {casual_status_en}. what's up?",
+                f"yeah I'm here! I'm Coet — CatVos's manager, I handle his messages when he's busy. he's {casual_status_en}. what's up?",
                 f"yo, I'm here. Coet — I'm CatVos's close associate, handling things for him. he's {casual_status_en} rn. what do you need?",
                 f"yep! Coet here — I run CatVos's business stuff when he's away. he's {casual_status_en}. what can I help with?"
             ]
@@ -508,7 +508,7 @@ def get_rule_based_fallback(message_text, status_mode, chat_history, contact_nam
     if is_greeting and not has_introduced:
         if is_hinglish:
             name_part = f"hey{' ' + contact_name if contact_name else ''}! "
-            return f"{name_part}main Coet hu, CatVos ka banda. {status_msg}"
+            return f"{name_part}main Coet hu, CatVos ka bhai. {status_msg}"
         name_part = f"Hi{' ' + contact_name if contact_name else ''}. " if contact_name else "Hey. "
         return f"{name_part}I'm Coet, CatVos's manager. {status_msg}"
 
