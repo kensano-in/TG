@@ -360,6 +360,9 @@ function App() {
   const [dealMsgCopied, setDealMsgCopied] = useState(false);
   const [dealDirectSendStatus, setDealDirectSendStatus] = useState('');
   const [isDealDirectSending, setIsDealDirectSending] = useState(false);
+  const [dealMsgWizardTab, setDealMsgWizardTab] = useState('meta');
+  const [magicAuraEnhanced, setMagicAuraEnhanced] = useState(false);
+  const [uplinkLogs, setUplinkLogs] = useState([]);
 
   const playChime = (type = 'message') => {
     if (!audibleAlerts) return;
@@ -8054,59 +8057,59 @@ function App() {
         {/* ===== DEAL COMPLETION MESSAGE GENERATOR ===== */}
         {activeTab === 'dealManager' && (() => {
           const SERVICE_TYPES = [
-            { key: 'whatsapp_alt', label: 'WhatsApp Alt Number', color: '#25D366' },
-            { key: 'telegram_acc', label: 'Telegram Account', color: '#2AABEE' },
-            { key: 'instagram_acc', label: 'Instagram Account', color: '#E1306C' },
-            { key: 'gmail_acc', label: 'Gmail / Google Account', color: '#EA4335' },
-            { key: 'facebook_acc', label: 'Facebook Account', color: '#1877F2' },
-            { key: 'crypto_wallet', label: 'Crypto Wallet / Seed', color: '#F7931A' },
-            { key: 'vpn_access', label: 'VPN / Proxy Access', color: '#7c4dff' },
-            { key: 'custom_service', label: 'Custom Service', color: '#fbbf24' },
+            { key: 'whatsapp_alt', label: 'WhatsApp Alt Number', color: '#25D366', icon: '📱' },
+            { key: 'telegram_acc', label: 'Telegram Account', color: '#2AABEE', icon: '📲' },
+            { key: 'instagram_acc', label: 'Instagram Account', color: '#E1306C', icon: '📸' },
+            { key: 'gmail_acc', label: 'Gmail / Google Account', color: '#EA4335', icon: '📧' },
+            { key: 'facebook_acc', label: 'Facebook Account', color: '#1877F2', icon: '📘' },
+            { key: 'crypto_wallet', label: 'Crypto Wallet / Seed', color: '#F7931A', icon: '🪙' },
+            { key: 'vpn_access', label: 'VPN / Proxy Access', color: '#7c4dff', icon: '🛡️' },
+            { key: 'custom_service', label: 'Custom Service', color: '#fbbf24', icon: '🔮' },
           ];
 
-          const generateMessage = () => {
+          const generateMessage = (forceEnhance = null) => {
+            const isEnhanced = forceEnhance !== null ? forceEnhance : magicAuraEnhanced;
             const f = dealMsgFields;
             const svc = SERVICE_TYPES.find(s => s.key === dealMsgServiceType) || SERVICE_TYPES[0];
-            const hr = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+            const hr = isEnhanced ? '⚡ ━━━━━━━━━━━━━━━━━━━━━━━━ ⚡' : '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
             const orderId = f.order_id || 'ORDER-' + Math.random().toString(36).substring(2,12).toUpperCase();
-            const now = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
             let serviceBlock = '';
             let loginBlock = '';
             let howToBlock = '';
 
             if (dealMsgServiceType === 'whatsapp_alt') {
-              serviceBlock = `📱 Purchased Alt:\n${f.login_number || '+X XXX XXX XXXX'}`;
-              loginBlock = `🔑 Login Details\n\nNumber:\n${f.login_number || '+X XXX XXX XXXX'}`;
-              howToBlock = `How to Login:\n\n1. Open WhatsApp Business.\n2. Enter your purchased number.\n3. Select the option to receive the verification code via email.\n4. Check your email inbox and copy the verification code.\n5. Complete the login process.\n\n🔐 Two-Factor Authentication (2FA):\n${f.totp_code || 'N/A'}`;
+              serviceBlock = `${isEnhanced ? '💎' : '📱'} Purchased Alt:\n${f.login_number || '+X XXX XXX XXXX'}`;
+              loginBlock = `${isEnhanced ? '🔒' : '🔑'} Login Details\n\nNumber:\n${f.login_number || '+X XXX XXX XXXX'}`;
+              howToBlock = `${isEnhanced ? '🚀' : 'How to'} Login Guide:\n\n1. Open WhatsApp Business.\n2. Enter your purchased number.\n3. Select the option to receive the verification code via email.\n4. Check your email inbox and copy the verification code.\n5. Complete the login process.\n\n🔐 Two-Factor Authentication (2FA):\n${f.totp_code || 'N/A'}`;
             } else if (dealMsgServiceType === 'telegram_acc') {
-              serviceBlock = `📲 Purchased Account:\n${f.login_number || '+X XXX XXX XXXX'}`;
-              loginBlock = `🔑 Login Details\n\nPhone Number:\n${f.login_number || '+X XXX XXX XXXX'}\n\nPassword:\n${f.password || '••••••••'}`;
-              howToBlock = `How to Login:\n\n1. Open Telegram and click "Log In".\n2. Enter the purchased phone number.\n3. Wait for OTP — check the backup email.\n4. Enter the OTP code.\n5. If 2FA is set, use the password above.\n\n🔐 2FA Password:\n${f.password || 'N/A'}`;
+              serviceBlock = `${isEnhanced ? '💎' : '📲'} Purchased Account:\n${f.login_number || '+X XXX XXX XXXX'}`;
+              loginBlock = `${isEnhanced ? '🔒' : '🔑'} Login Details\n\nPhone Number:\n${f.login_number || '+X XXX XXX XXXX'}\n\nPassword:\n${f.password || '••••••••'}`;
+              howToBlock = `${isEnhanced ? '🚀' : 'How to'} Login Guide:\n\n1. Open Telegram and click "Log In".\n2. Enter the purchased phone number.\n3. Wait for OTP — check the backup email.\n4. Enter the OTP code.\n5. If 2FA is set, use the password above.\n\n🔐 2FA Password:\n${f.password || 'N/A'}`;
             } else if (dealMsgServiceType === 'instagram_acc') {
-              serviceBlock = `📸 Instagram Account:\n${f.email || 'username@example.com'}`;
-              loginBlock = `🔑 Login Credentials\n\nEmail / Username:\n${f.email || 'username@example.com'}\n\nPassword:\n${f.password || '••••••••'}`;
-              howToBlock = `How to Login:\n\n1. Open Instagram and tap "Log In".\n2. Enter the email / username above.\n3. Enter the password above.\n4. If prompted for verification, check the backup email.\n5. Change the password immediately after login.`;
+              serviceBlock = `${isEnhanced ? '💎' : '📸'} Instagram Account:\n${f.email || 'username@example.com'}`;
+              loginBlock = `${isEnhanced ? '🔒' : '🔑'} Login Credentials\n\nEmail / Username:\n${f.email || 'username@example.com'}\n\nPassword:\n${f.password || '••••••••'}`;
+              howToBlock = `${isEnhanced ? '🚀' : 'How to'} Login Guide:\n\n1. Open Instagram and tap "Log In".\n2. Enter the email / username above.\n3. Enter the password above.\n4. If prompted for verification, check the backup email.\n5. Change the password immediately after login.`;
             } else if (dealMsgServiceType === 'gmail_acc') {
-              serviceBlock = `📧 Google Account:\n${f.email || 'user@gmail.com'}`;
-              loginBlock = `🔑 Login Credentials\n\nEmail:\n${f.email || 'user@gmail.com'}\n\nPassword:\n${f.password || '••••••••'}\n\nRecovery Code:\n${f.totp_code || 'N/A'}`;
-              howToBlock = `How to Login:\n\n1. Go to accounts.google.com\n2. Enter the email address above.\n3. Enter the password above.\n4. If 2-step verification is requested, use the recovery code.\n5. Immediately update recovery email/phone after login.`;
+              serviceBlock = `${isEnhanced ? '💎' : '📧'} Google Account:\n${f.email || 'user@gmail.com'}`;
+              loginBlock = `${isEnhanced ? '🔒' : '🔑'} Login Credentials\n\nEmail:\n${f.email || 'user@gmail.com'}\n\nPassword:\n${f.password || '••••••••'}\n\nRecovery Code:\n${f.totp_code || 'N/A'}`;
+              howToBlock = `${isEnhanced ? '🚀' : 'How to'} Login Guide:\n\n1. Go to accounts.google.com\n2. Enter the email address above.\n3. Enter the password above.\n4. If 2-step verification is requested, use the recovery code.\n5. Immediately update recovery email/phone after login.`;
             } else if (dealMsgServiceType === 'facebook_acc') {
-              serviceBlock = `📘 Facebook Account:\n${f.email || 'user@email.com'}`;
-              loginBlock = `🔑 Login Credentials\n\nEmail:\n${f.email || 'user@email.com'}\n\nPassword:\n${f.password || '••••••••'}`;
-              howToBlock = `How to Login:\n\n1. Go to facebook.com or open the app.\n2. Enter the email and password above.\n3. If verification is needed, check the linked email.\n4. Do NOT log in from multiple devices immediately.\n5. Change password within 24h.`;
+              serviceBlock = `${isEnhanced ? '💎' : '📘'} Facebook Account:\n${f.email || 'user@email.com'}`;
+              loginBlock = `${isEnhanced ? '🔒' : '🔑'} Login Credentials\n\nEmail:\n${f.email || 'user@email.com'}\n\nPassword:\n${f.password || '••••••••'}`;
+              howToBlock = `${isEnhanced ? '🚀' : 'How to'} Login Guide:\n\n1. Go to facebook.com or open the app.\n2. Enter the email and password above.\n3. If verification is needed, check the linked email.\n4. Do NOT log in from multiple devices immediately.\n5. Change password within 24h.`;
             } else if (dealMsgServiceType === 'crypto_wallet') {
-              serviceBlock = `🪙 Crypto Wallet Delivered`;
-              loginBlock = `🔑 Wallet Credentials\n\nSeed Phrase:\n${f.password || '[12/24 word seed phrase]'}\n\nWallet Address:\n${f.login_number || '0x...'}`;
-              howToBlock = `How to Import:\n\n1. Open your preferred wallet app (MetaMask, Trust Wallet, etc.).\n2. Select "Import Wallet" or "Add Wallet".\n3. Enter the seed phrase provided above, word by word.\n4. Set a new strong password for local encryption.\n5. NEVER share your seed phrase with anyone.\n\n⚠️ Security Notice: Transfer funds immediately to a new wallet.`;
+              serviceBlock = `${isEnhanced ? '💎' : '🪙'} Crypto Wallet Delivered`;
+              loginBlock = `${isEnhanced ? '🔒' : '🔑'} Wallet Credentials\n\nSeed Phrase:\n${f.password || '[12/24 word seed phrase]'}\n\nWallet Address:\n${f.login_number || '0x...'}`;
+              howToBlock = `${isEnhanced ? '🚀' : 'How to'} Import Guide:\n\n1. Open your preferred wallet app (MetaMask, Trust Wallet, etc.).\n2. Select "Import Wallet" or "Add Wallet".\n3. Enter the seed phrase provided above, word by word.\n4. Set a new strong password for local encryption.\n5. NEVER share your seed phrase with anyone.\n\n⚠️ Security Notice: Transfer funds immediately to a new wallet.`;
             } else if (dealMsgServiceType === 'vpn_access') {
-              serviceBlock = `🛡️ VPN / Proxy Access Delivered`;
-              loginBlock = `🔑 Access Credentials\n\nServer / Host:\n${f.login_number || 'vpn.server.com'}\n\nUsername:\n${f.email || 'user123'}\n\nPassword:\n${f.password || '••••••••'}`;
-              howToBlock = `How to Connect:\n\n1. Download the VPN client (link in video below).\n2. Import the config or enter credentials manually.\n3. Select the nearest server for best speed.\n4. Test your IP at ipleak.net to confirm connection.\n\n📹 Setup Video: ${f.video_link || 'https://youtu.be/...'}`;
+              serviceBlock = `${isEnhanced ? '💎' : '🛡️'} VPN / Proxy Access Delivered`;
+              loginBlock = `${isEnhanced ? '🔒' : '🔑'} Access Credentials\n\nServer / Host:\n${f.login_number || 'vpn.server.com'}\n\nUsername:\n${f.email || 'user123'}\n\nPassword:\n${f.password || '••••••••'}`;
+              howToBlock = `${isEnhanced ? '🚀' : 'How to'} Connect Guide:\n\n1. Download the VPN client (link in video below).\n2. Import the config or enter credentials manually.\n3. Select the nearest server for best speed.\n4. Test your IP at ipleak.net to confirm connection.\n\n📹 Setup Video: ${f.video_link || 'https://youtu.be/...'}`;
             } else {
-              serviceBlock = `🛒 Service Delivered:\n${f.item_name || 'Custom Item'}`;
-              loginBlock = `🔑 Access Details\n\n${f.login_number ? `Credentials:\n${f.login_number}` : ''}\n${f.email ? `Email: ${f.email}` : ''}\n${f.password ? `Password: ${f.password}` : ''}`;
-              howToBlock = `Instructions:\n\n1. Follow the setup video for step-by-step guidance.\n2. Contact support if you face any issue.\n\n📹 Video Guide: ${f.video_link || 'https://youtu.be/...'}`;
+              serviceBlock = `${isEnhanced ? '💎' : '🛒'} Service Delivered:\n${f.item_name || 'Custom Item'}`;
+              loginBlock = `${isEnhanced ? '🔒' : '🔑'} Access Details\n\n${f.login_number ? `Credentials:\n${f.login_number}` : ''}\n${f.email ? `Email: ${f.email}` : ''}\n${f.password ? `Password: ${f.password}` : ''}`;
+              howToBlock = `${isEnhanced ? '🚀' : 'Instructions'}:\n\n1. Follow the setup video for step-by-step guidance.\n2. Contact support if you face any issue.\n\n📹 Video Guide: ${f.video_link || 'https://youtu.be/...'}`;
             }
 
             const msg = `Hello @${f.buyer_username || 'username'},
@@ -8174,6 +8177,7 @@ Bot: @${f.bot_username || 'YourBot'}
 For activation and setup, please contact our team.
 
 Thank you for choosing ${f.store_name || 'us'} 🤍`;
+
             setDealMsgGenerated(msg);
           };
 
@@ -8187,8 +8191,27 @@ Thank you for choosing ${f.store_name || 'us'} 🤍`;
               setDealDirectSendStatus('Error: Generate message first');
               return;
             }
+
             setIsDealDirectSending(true);
             setDealDirectSendStatus('Sending...');
+
+            const logs = [
+              '[SYSTEM] Initializing Quantum Uplink via CatVos ID...',
+              '[RESOLVING] Contacting Telegram lookup database...',
+              `[RESOLVING] Found target username: @${f.buyer_username}`,
+              '[SECURITY] Encrypting credentials payload with AES-256...',
+              '[DISPATCH] Attempting WebSocket broadcast...'
+            ];
+
+            setUplinkLogs([logs[0]]);
+
+            const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+            for (let i = 1; i < logs.length; i++) {
+              await delay(700);
+              setUplinkLogs(prev => [...prev, logs[i]]);
+            }
+
             try {
               const res = await fetch(`${API_BASE}/api/admin/send-direct-message`, {
                 method: 'POST',
@@ -8202,171 +8225,598 @@ Thank you for choosing ${f.store_name || 'us'} 🤍`;
                 })
               });
               const data = await res.json();
+              await delay(600);
               if (res.ok && data.status === 'success') {
+                setUplinkLogs(prev => [...prev, '✓ [SUCCESS] Message successfully delivered to client account!', '✓ CatVos connection closed.']);
                 setDealDirectSendStatus('Message Sent Successfully!');
+                playChime('message');
               } else {
-                setDealDirectSendStatus(`Error: ${data.detail || data.message || 'Send failed'}`);
+                const errMsg = data.detail || data.message || 'Send failed';
+                setUplinkLogs(prev => [...prev, `❌ [FAILED] Connection error: ${errMsg}`]);
+                setDealDirectSendStatus(`Error: ${errMsg}`);
+                playChime('alarm');
               }
             } catch (error) {
+              setUplinkLogs(prev => [...prev, `❌ [FAILED] Exception occurred: ${error.message}`]);
               setDealDirectSendStatus(`Error: ${error.message}`);
+              playChime('alarm');
             } finally {
+              await delay(3500);
               setIsDealDirectSending(false);
             }
           };
 
+          const toggleAuraEnhancement = () => {
+            const nextVal = !magicAuraEnhanced;
+            setMagicAuraEnhanced(nextVal);
+            generateMessage(nextVal);
+          };
+
+          const calculateAuraLevel = () => {
+            if (!dealMsgGenerated) return { score: 0, text: 'AURA EMPTY', color: '#64748b' };
+            let score = 30;
+            const f = dealMsgFields;
+            if (f.buyer_username) score += 10;
+            if (f.store_name) score += 10;
+            if (f.order_id) score += 10;
+            if (f.login_number || f.email) score += 15;
+            if (f.password) score += 15;
+            if (f.totp_code) score += 5;
+            if (f.video_link) score += 5;
+            if (magicAuraEnhanced) score += 10;
+
+            score = Math.min(score, 100);
+
+            let text = 'STREET LEVEL';
+            let color = '#ef4444';
+            if (score >= 95) { text = 'GOD LEVEL AURA'; color = '#c084fc'; }
+            else if (score >= 80) { text = 'PURE GOLD AURA'; color = '#f59e0b'; }
+            else if (score >= 60) { text = 'ELITE LEVEL AURA'; color = '#60a5fa'; }
+            else if (score >= 40) { text = 'DECENT AURA'; color = '#10b981'; }
+
+            return { score, text, color };
+          };
+
+          const aura = calculateAuraLevel();
+
           return (
-            <div style={{ marginTop: '24px', background: 'linear-gradient(135deg,rgba(124,77,255,0.06),rgba(96,165,250,0.04))', border: '1px solid rgba(124,77,255,0.2)', borderRadius: '20px', padding: '28px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#7c4dff', boxShadow: '0 0 12px #7c4dff' }} />
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#d8b4fe', letterSpacing: '-0.02em' }}>Deal Completion Message Builder</h3>
-                <span style={{ fontSize: '0.7rem', padding: '2px 10px', borderRadius: '20px', background: 'rgba(124,77,255,0.15)', color: '#a78bfa', border: '1px solid rgba(124,77,255,0.2)' }}>PURE AURA</span>
-              </div>
-              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '22px', marginLeft: '20px' }}>Auto-generate a perfectly formatted Telegram delivery message for any service type. Every section — purchase details, login info, how-to guide, and ad block — is crafted per service.</p>
+            <div style={{ marginTop: '32px', position: 'relative' }}>
 
-              {/* Service Type Selector */}
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, display: 'block', marginBottom: '10px' }}>Service Type</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                  {SERVICE_TYPES.map(svc => (
-                    <button key={svc.key}
-                      onClick={() => setDealMsgServiceType(svc.key)}
-                      style={{ padding: '6px 16px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', border: `1px solid ${dealMsgServiceType === svc.key ? svc.color : 'rgba(255,255,255,0.08)'}`, background: dealMsgServiceType === svc.key ? `${svc.color}18` : 'transparent', color: dealMsgServiceType === svc.key ? svc.color : 'var(--text-muted)', transition: 'all 0.2s' }}>
-                      {svc.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                {/* Input Fields */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <h4 style={{ fontSize: '0.85rem', color: '#a78bfa', fontWeight: 700, marginBottom: '4px' }}>Message Fields</h4>
-                  {[
-                    { key: 'buyer_username', label: 'Buyer Telegram Username', placeholder: 'e.g. gurusuprme (no @)' },
-                    { key: 'store_name', label: 'Store / Brand Name', placeholder: 'e.g. Shinken' },
-                    { key: 'order_id', label: 'Order ID (leave blank to auto-generate)', placeholder: 'SH5308RUSMFX...' },
-                    { key: 'item_name', label: 'Item / Service Name', placeholder: 'e.g. WhatsApp Business Alt' },
-                    { key: 'seller_info', label: 'Seller Details', placeholder: 'e.g. @ShinichiroTt, @Maoxese' },
-                    { key: 'login_number', label: 'Account Number / Server / Address', placeholder: '+7 775 673 1189' },
-                    { key: 'email', label: 'Email / Username', placeholder: 'user@gmail.com' },
-                    { key: 'password', label: 'Password / Seed Phrase', placeholder: '••••••••' },
-                    { key: 'totp_code', label: '2FA Code / Recovery', placeholder: '156507' },
-                    { key: 'video_link', label: 'Tutorial Video Link', placeholder: 'https://youtu.be/...' },
-                    { key: 'support_contact', label: 'Support Contact', placeholder: '@ShinichiroTt' },
-                    { key: 'bot_username', label: 'Bot Username', placeholder: '@Coetbot' },
-                    { key: 'bot_name', label: 'Bot Display Name', placeholder: 'Coet AI Assistant' },
-                    { key: 'custom_note', label: 'Custom Note (appended)', placeholder: 'Any extra info...' },
-                  ].map(field => (
-                    <div key={field.key}>
-                      <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>{field.label}</label>
-                      <input className="glass-input" style={{ width: '100%', fontSize: '0.8rem' }}
-                        placeholder={field.placeholder}
-                        value={dealMsgFields[field.key] || ''}
-                        onChange={e => setDealMsgFields(prev => ({ ...prev, [field.key]: e.target.value }))} />
+              {/* Header Title section */}
+              <div style={{ background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(6, 182, 212, 0.04))', border: '1px solid rgba(139, 92, 246, 0.25)', borderRadius: '24px', padding: '28px', marginBottom: '28px', boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#8b5cf6', boxShadow: '0 0 15px #8b5cf6', animation: 'pulse 2s infinite' }} />
+                    <div>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 700, color: '#f8fafc', letterSpacing: '-0.02em', background: 'linear-gradient(90deg, #d8b4fe, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                        COET QUANTUM MESSAGE FORGER
+                      </h3>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        Compile, enhance, and securely uplink commercial delivery credentials directly via Telegram.
+                      </p>
                     </div>
-                  ))}
-                  <button
-                    onClick={generateMessage}
-                    style={{ marginTop: '8px', padding: '13px', borderRadius: '12px', background: 'linear-gradient(135deg,#7c4dff,#a78bfa)', border: 'none', color: '#fff', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', letterSpacing: '0.02em', boxShadow: '0 4px 20px rgba(124,77,255,0.35)', transition: 'all 0.2s' }}>
-                    Generate Pure Aura Message
-                  </button>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '0.72rem', padding: '4px 12px', borderRadius: '20px', background: 'rgba(139, 92, 246, 0.15)', color: '#c084fc', border: '1px solid rgba(139, 92, 246, 0.3)', fontWeight: 700 }}>
+                      SYSTEM V3.0
+                    </span>
+                    <span style={{ fontSize: '0.72rem', padding: '4px 12px', borderRadius: '20px', background: magicAuraEnhanced ? 'rgba(192, 132, 252, 0.2)' : 'rgba(255,255,255,0.05)', color: magicAuraEnhanced ? '#d8b4fe' : 'var(--text-muted)', border: magicAuraEnhanced ? '1px solid rgba(192, 132, 252, 0.4)' : '1px solid rgba(255,255,255,0.08)', fontWeight: 700, cursor: 'pointer' }} onClick={toggleAuraEnhancement}>
+                      ✨ AURA: {magicAuraEnhanced ? 'ENHANCED' : 'NORMAL'}
+                    </span>
+                  </div>
                 </div>
+              </div>
 
-                {/* Preview */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h4 style={{ fontSize: '0.85rem', color: '#60a5fa', fontWeight: 700 }}>Live Preview</h4>
-                    {dealMsgGenerated && (
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        {dealDirectSendStatus && (
-                          <span style={{ fontSize: '0.72rem', color: dealDirectSendStatus.includes('Error') ? '#fb7185' : '#34d399', fontWeight: 600 }}>
-                            {dealDirectSendStatus}
-                          </span>
-                        )}
-                        <button
-                          onClick={handleDirectSend}
-                          disabled={isDealDirectSending}
-                          style={{ padding: '5px 14px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700, cursor: isDealDirectSending ? 'wait' : 'pointer', background: 'rgba(124,77,255,0.15)', border: '1px solid rgba(124,77,255,0.4)', color: '#a78bfa', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
-                          {isDealDirectSending ? 'Sending...' : 'Direct Send'}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: '28px', alignItems: 'start' }}>
+
+                {/* Left Column: Form & Controller */}
+                <div className="glass-container" style={{ padding: '28px', border: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+                  {/* Service type buttons */}
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, display: 'block', marginBottom: '10px', letterSpacing: '0.05em' }}>
+                      SELECT TARGET PRODUCT
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '8px' }}>
+                      {SERVICE_TYPES.map(svc => (
+                        <button key={svc.key}
+                          type="button"
+                          onClick={() => setDealMsgServiceType(svc.key)}
+                          style={{
+                            padding: '10px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
+                            border: `1px solid ${dealMsgServiceType === svc.key ? svc.color : 'rgba(255,255,255,0.05)'}`,
+                            background: dealMsgServiceType === svc.key ? `${svc.color}15` : 'rgba(255,255,255,0.01)',
+                            color: dealMsgServiceType === svc.key ? '#fff' : 'var(--text-muted)',
+                            display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-start',
+                            transition: 'all 0.25s',
+                            boxShadow: dealMsgServiceType === svc.key ? `0 0 10px ${svc.color}15` : 'none'
+                          }}>
+                          <span style={{ fontSize: '0.9rem' }}>{svc.icon}</span>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{svc.label}</span>
                         </button>
-                        <button
-                          onClick={() => { navigator.clipboard.writeText(dealMsgGenerated); setDealMsgCopied(true); setTimeout(() => setDealMsgCopied(false), 2500); }}
-                          style={{ padding: '5px 14px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', background: dealMsgCopied ? 'rgba(52,211,153,0.15)' : 'rgba(96,165,250,0.1)', border: `1px solid ${dealMsgCopied ? 'rgba(52,211,153,0.4)' : 'rgba(96,165,250,0.3)'}`, color: dealMsgCopied ? '#34d399' : '#60a5fa' }}>
-                          {dealMsgCopied ? 'Copied!' : 'Copy'}
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Input Wizard Tabs */}
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, display: 'block', marginBottom: '8px', letterSpacing: '0.05em' }}>
+                      FORGER STATE WIZARD
+                    </label>
+                    <div style={{ display: 'flex', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '12px', padding: '4px' }}>
+                      {[
+                        { id: 'meta', label: '📊 Transaction Meta' },
+                        { id: 'credentials', label: '🔑 Credentials Block' },
+                        { id: 'ads', label: '🤖 Support & Ads' }
+                      ].map(t => (
+                        <button key={t.id} type="button"
+                          onClick={() => setDealMsgWizardTab(t.id)}
+                          style={{
+                            flex: 1, padding: '8px 4px', borderRadius: '8px', border: 'none', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
+                            background: dealMsgWizardTab === t.id ? 'linear-gradient(135deg, rgba(139,92,246,0.18), rgba(6,182,212,0.1))' : 'transparent',
+                            color: dealMsgWizardTab === t.id ? '#fff' : 'var(--text-muted)',
+                            borderBottom: dealMsgWizardTab === t.id ? '2px solid #8b5cf6' : 'none',
+                            boxShadow: dealMsgWizardTab === t.id ? '0 4px 12px rgba(139,92,246,0.1)' : 'none',
+                            transition: 'all 0.2s'
+                          }}>
+                          {t.label}
                         </button>
-                      </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Wizard Tab Content */}
+                  <div style={{ minHeight: '260px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {dealMsgWizardTab === 'meta' && (
+                      <>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                          <div>
+                            <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>Buyer Username (no @)</label>
+                            <input className="glass-input" style={{ width: '100%', fontSize: '0.8rem' }}
+                              placeholder="e.g. gurusuprme"
+                              value={dealMsgFields.buyer_username || ''}
+                              onChange={e => setDealMsgFields(prev => ({ ...prev, buyer_username: e.target.value }))} />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>Store / Brand Name</label>
+                            <input className="glass-input" style={{ width: '100%', fontSize: '0.8rem' }}
+                              placeholder="e.g. Shinken"
+                              value={dealMsgFields.store_name || ''}
+                              onChange={e => setDealMsgFields(prev => ({ ...prev, store_name: e.target.value }))} />
+                          </div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                          <div>
+                            <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>Order ID (auto-generated if empty)</label>
+                            <input className="glass-input" style={{ width: '100%', fontSize: '0.8rem' }}
+                              placeholder="e.g. SH5308RUSMFX"
+                              value={dealMsgFields.order_id || ''}
+                              onChange={e => setDealMsgFields(prev => ({ ...prev, order_id: e.target.value }))} />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>Item / Service Name</label>
+                            <input className="glass-input" style={{ width: '100%', fontSize: '0.8rem' }}
+                              placeholder="e.g. WhatsApp Business Alt"
+                              value={dealMsgFields.item_name || ''}
+                              onChange={e => setDealMsgFields(prev => ({ ...prev, item_name: e.target.value }))} />
+                          </div>
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>Seller Details</label>
+                          <input className="glass-input" style={{ width: '100%', fontSize: '0.8rem' }}
+                            placeholder="e.g. @ShinichiroTt, @Maoxese"
+                            value={dealMsgFields.seller_info || ''}
+                            onChange={e => setDealMsgFields(prev => ({ ...prev, seller_info: e.target.value }))} />
+                        </div>
+                      </>
+                    )}
+
+                    {dealMsgWizardTab === 'credentials' && (
+                      <>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                          <div>
+                            <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>Account Number / Phone / Server</label>
+                            <input className="glass-input" style={{ width: '100%', fontSize: '0.8rem' }}
+                              placeholder="e.g. +7 775 673 1189"
+                              value={dealMsgFields.login_number || ''}
+                              onChange={e => setDealMsgFields(prev => ({ ...prev, login_number: e.target.value }))} />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>Email / Username</label>
+                            <input className="glass-input" style={{ width: '100%', fontSize: '0.8rem' }}
+                              placeholder="e.g. user@gmail.com"
+                              value={dealMsgFields.email || ''}
+                              onChange={e => setDealMsgFields(prev => ({ ...prev, email: e.target.value }))} />
+                          </div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                          <div>
+                            <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>Password / Seed Phrase</label>
+                            <input className="glass-input" style={{ width: '100%', fontSize: '0.8rem' }}
+                              placeholder="e.g. secret123 or seed words"
+                              value={dealMsgFields.password || ''}
+                              onChange={e => setDealMsgFields(prev => ({ ...prev, password: e.target.value }))} />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>2FA Code / Recovery Key</label>
+                            <input className="glass-input" style={{ width: '100%', fontSize: '0.8rem' }}
+                              placeholder="e.g. 156507"
+                              value={dealMsgFields.totp_code || ''}
+                              onChange={e => setDealMsgFields(prev => ({ ...prev, totp_code: e.target.value }))} />
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {dealMsgWizardTab === 'ads' && (
+                      <>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                          <div>
+                            <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>Support Username</label>
+                            <input className="glass-input" style={{ width: '100%', fontSize: '0.8rem' }}
+                              placeholder="e.g. @ShinichiroTt"
+                              value={dealMsgFields.support_contact || ''}
+                              onChange={e => setDealMsgFields(prev => ({ ...prev, support_contact: e.target.value }))} />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>Tutorial Video Link</label>
+                            <input className="glass-input" style={{ width: '100%', fontSize: '0.8rem' }}
+                              placeholder="e.g. https://youtu.be/..."
+                              value={dealMsgFields.video_link || ''}
+                              onChange={e => setDealMsgFields(prev => ({ ...prev, video_link: e.target.value }))} />
+                          </div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                          <div>
+                            <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>Bot Username</label>
+                            <input className="glass-input" style={{ width: '100%', fontSize: '0.8rem' }}
+                              placeholder="e.g. @Coetbot"
+                              value={dealMsgFields.bot_username || ''}
+                              onChange={e => setDealMsgFields(prev => ({ ...prev, bot_username: e.target.value }))} />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>Bot Display Name</label>
+                            <input className="glass-input" style={{ width: '100%', fontSize: '0.8rem' }}
+                              placeholder="e.g. Coet AI Assistant"
+                              value={dealMsgFields.bot_name || ''}
+                              onChange={e => setDealMsgFields(prev => ({ ...prev, bot_name: e.target.value }))} />
+                          </div>
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>Custom Note / Footnote</label>
+                          <input className="glass-input" style={{ width: '100%', fontSize: '0.8rem' }}
+                            placeholder="Any extra info to append..."
+                            value={dealMsgFields.custom_note || ''}
+                            onChange={e => setDealMsgFields(prev => ({ ...prev, custom_note: e.target.value }))} />
+                        </div>
+                      </>
                     )}
                   </div>
-                  <div style={{ flex: 1, minHeight: '520px', background: 'linear-gradient(180deg, #0f172a 0%, #1e293b 100%)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '24px', padding: '0', overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.1)' }}>
-                    
-                    {/* Telegram Chat Header Mockup */}
-                    <div style={{ padding: '14px 20px', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: '12px', backdropFilter: 'blur(10px)' }}>
-                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'linear-gradient(135deg, #a78bfa, #7c4dff)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '1.2rem', boxShadow: '0 0 15px rgba(124,77,255,0.4)' }}>
+
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    {dealMsgWizardTab !== 'meta' && (
+                      <button
+                        type="button"
+                        onClick={() => setDealMsgWizardTab(dealMsgWizardTab === 'ads' ? 'credentials' : 'meta')}
+                        style={{ flex: 0.4, padding: '12px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--text-muted)', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}>
+                        Back
+                      </button>
+                    )}
+                    {dealMsgWizardTab !== 'ads' ? (
+                      <button
+                        type="button"
+                        onClick={() => setDealMsgWizardTab(dealMsgWizardTab === 'meta' ? 'credentials' : 'ads')}
+                        style={{ flex: 1, padding: '12px', borderRadius: '12px', background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)', border: 'none', color: '#fff', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 15px rgba(59,130,246,0.25)' }}>
+                        Next Step
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => generateMessage()}
+                        style={{ flex: 1, padding: '13px', borderRadius: '12px', background: 'linear-gradient(135deg,#8b5cf6,#6366f1)', border: 'none', color: '#fff', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', letterSpacing: '0.02em', boxShadow: '0 4px 20px rgba(139,92,246,0.35)', transition: 'all 0.2s' }}>
+                        ⚡ IGNITE QUANTUM GENERATOR
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Column: Premium Bezel Device Live Mockup */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+
+                  {/* Glowing halo behind the phone */}
+                  <div style={{
+                    position: 'absolute',
+                    width: '320px',
+                    height: '420px',
+                    background: 'radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, rgba(6, 182, 212, 0.05) 50%, transparent 80%)',
+                    filter: 'blur(40px)',
+                    top: '50px',
+                    zIndex: 0,
+                    pointerEvents: 'none'
+                  }} />
+
+                  {/* Device frame */}
+                  <div style={{
+                    position: 'relative',
+                    width: '330px',
+                    height: '630px',
+                    background: '#090d16',
+                    border: '12px solid #1e293b',
+                    borderRadius: '44px',
+                    boxShadow: '0 30px 60px rgba(0,0,0,0.8), inset 0 2px 3px rgba(255,255,255,0.1), 0 0 20px rgba(139, 92, 246, 0.15)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                    zIndex: 1
+                  }}>
+
+                    {/* Device Screen reflection lines */}
+                    <div style={{
+                      position: 'absolute',
+                      top: 0, right: 0, width: '40%', height: '100%',
+                      background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.015) 60%, transparent)',
+                      transform: 'skewX(-20deg)', transformOrigin: 'top right', pointerEvents: 'none', zIndex: 15
+                    }} />
+
+                    {/* Smartphone Notch / Dynamic Island */}
+                    <div style={{
+                      position: 'absolute',
+                      top: '0',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      width: '110px',
+                      height: '24px',
+                      background: '#1e293b',
+                      borderRadius: '0 0 16px 16px',
+                      zIndex: 25,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#090d16', marginRight: '8px' }} />
+                      <div style={{ width: '38px', height: '3px', borderRadius: '2px', background: '#0f172a' }} />
+                    </div>
+
+                    {/* Left Side Buttons (Volume) */}
+                    <div style={{ position: 'absolute', left: '-15px', top: '100px', width: '3px', height: '40px', background: '#334155', borderRadius: '3px 0 0 3px', zIndex: -1 }} />
+                    <div style={{ position: 'absolute', left: '-15px', top: '145px', width: '3px', height: '40px', background: '#334155', borderRadius: '3px 0 0 3px', zIndex: -1 }} />
+                    {/* Right Side Button (Power) */}
+                    <div style={{ position: 'absolute', right: '-15px', top: '120px', width: '3px', height: '55px', background: '#334155', borderRadius: '0 3px 3px 0', zIndex: -1 }} />
+
+                    {/* Cyberpunk logs terminal overlay inside the screen */}
+                    {isDealDirectSending && (
+                      <div style={{
+                        position: 'absolute',
+                        inset: 0,
+                        background: 'rgba(6, 9, 18, 0.96)',
+                        zIndex: 20,
+                        padding: '30px 20px 20px 20px',
+                        fontFamily: 'monospace',
+                        fontSize: '0.72rem',
+                        color: '#34d399',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'flex-start',
+                        gap: '12px',
+                        boxShadow: 'inset 0 0 30px rgba(52,211,153,0.1)'
+                      }}>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#818cf8', borderBottom: '1px solid rgba(129,140,248,0.2)', paddingBottom: '6px', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#818cf8', display: 'inline-block', animation: 'pulse 1.5s infinite' }} />
+                          UPLINK CORE v3.0
+                        </div>
+                        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {uplinkLogs.map((log, idx) => (
+                            <div key={idx} style={{ lineBreak: 'anywhere', opacity: 0.95, textShadow: '0 0 4px rgba(52,211,153,0.3)', animation: 'fadeIn 0.15s ease-out forwards' }}>
+                              {log}
+                            </div>
+                          ))}
+                          <div style={{ display: 'flex', gap: '4px', alignItems: 'center', color: '#64748b' }}>
+                            <span>core@catvos:~#</span>
+                            <span style={{ width: '6px', height: '11px', background: '#34d399', display: 'inline-block', animation: 'pulse 1s infinite' }} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Telegram mockup chat header inside screen */}
+                    <div style={{
+                      padding: '24px 16px 10px 16px',
+                      background: 'rgba(15, 23, 42, 0.85)',
+                      borderBottom: '1px solid rgba(255,255,255,0.05)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      backdropFilter: 'blur(10px)',
+                      zIndex: 10
+                    }}>
+                      <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'linear-gradient(135deg, #c084fc, #6366f1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '0.95rem', boxShadow: '0 0 10px rgba(99,102,241,0.4)' }}>
                         {dealMsgFields.buyer_username ? dealMsgFields.buyer_username.charAt(0).toUpperCase() : '?'}
                       </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '0.9rem', color: '#f8fafc', fontWeight: 700 }}>
-                          {dealMsgFields.buyer_username || 'Buyer'}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.8rem', color: '#fff', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {dealMsgFields.buyer_username ? `@${dealMsgFields.buyer_username}` : 'Buyer (Inactive)'}
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: '#34d399', fontWeight: 600 }}>online</div>
+                        <div style={{ fontSize: '0.68rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 500 }}>
+                          <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} /> online
+                        </div>
                       </div>
-                      <div style={{ display: 'flex', gap: '12px', color: 'var(--text-muted)' }}>
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
+                      <div style={{ display: 'flex', gap: '10px', color: 'var(--text-muted)' }}>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
                       </div>
                     </div>
 
-                    {/* Chat Body */}
-                    <div style={{ padding: '20px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    {/* Telegram mockup wallpaper/chat body */}
+                    <div style={{
+                      flex: 1,
+                      padding: '16px',
+                      overflowY: 'auto',
+                      background: 'radial-gradient(ellipse at bottom, #0f172a, #070913)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px'
+                    }}>
                       {dealMsgGenerated ? (
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', animation: 'fadeInUp 0.4s ease-out' }}>
-                          <div style={{ maxWidth: '85%', background: 'linear-gradient(135deg, rgba(30,58,138,0.6), rgba(49,46,129,0.8))', backdropFilter: 'blur(10px)', border: '1px solid rgba(124,77,255,0.3)', borderRadius: '18px 18px 4px 18px', padding: '16px 20px', fontSize: '0.85rem', color: '#e2e8f0', lineHeight: 1.6, whiteSpace: 'pre-wrap', fontFamily: '"Inter", "SF Pro Text", system-ui, sans-serif', boxShadow: '0 10px 25px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', animation: 'fadeInUp 0.3s ease-out' }}>
+                          <div style={{
+                            maxWidth: '90%',
+                            background: 'linear-gradient(135deg, rgba(79,70,229,0.7) 0%, rgba(49,46,129,0.85) 100%)',
+                            backdropFilter: 'blur(8px)',
+                            border: '1px solid rgba(139,92,246,0.3)',
+                            borderRadius: '16px 16px 4px 16px',
+                            padding: '12px 14px',
+                            fontSize: '0.78rem',
+                            color: '#f8fafc',
+                            lineHeight: 1.5,
+                            whiteSpace: 'pre-wrap',
+                            fontFamily: 'monospace',
+                            boxShadow: '0 8px 24px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1)'
+                          }}>
                             {dealMsgGenerated}
                             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px', alignItems: 'center', gap: '4px' }}>
-                               <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.4)' }}>
-                                 {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                               </span>
-                               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: '-8px' }}><polyline points="20 6 9 17 4 12"></polyline></svg>
+                              <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.45)' }}>
+                                {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: '-8px' }}><polyline points="20 6 9 17 4 12"></polyline></svg>
                             </div>
                           </div>
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', gap: '16px', paddingTop: '60px' }}>
-                          <div style={{ fontSize: '3rem', opacity: 0.2, filter: 'drop-shadow(0 0 20px rgba(124,77,255,0.5))' }}>🔮</div>
-                          <div style={{ textAlign: 'center', background: 'rgba(255,255,255,0.03)', padding: '20px', borderRadius: '16px', border: '1px dashed rgba(255,255,255,0.1)' }}>
-                            <h5 style={{ color: '#e2e8f0', fontSize: '0.9rem', marginBottom: '8px' }}>Pure Aura Output Empty</h5>
-                            <p style={{ fontSize: '0.75rem', lineHeight: 1.5 }}>Fill out the required information and<br/>ignite the generator to preview.</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', gap: '14px', textAlign: 'center', padding: '0 20px' }}>
+                          <span style={{ fontSize: '2.5rem', animation: 'pulse 2.5s infinite', filter: 'drop-shadow(0 0 15px rgba(139,92,246,0.4))' }}>🔮</span>
+                          <div>
+                            <div style={{ color: '#fff', fontSize: '0.8rem', fontWeight: 700, marginBottom: '4px' }}>Aura Generator Dormant</div>
+                            <div style={{ fontSize: '0.68rem', lineHeight: 1.4 }}>Complete the required wizard fields and ignite the generator above.</div>
                           </div>
                         </div>
                       )}
                     </div>
                   </div>
+
+                  {/* Aura Level dynamic bar (directly below phone mockup) */}
                   {dealMsgGenerated && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 18px', background: 'rgba(0,0,0,0.25)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.05)', boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.3)' }}>
-                      <div style={{ display: 'flex', gap: '16px' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Word Count</span>
-                          <span style={{ fontSize: '0.85rem', color: '#f8fafc', fontWeight: 700 }}>{dealMsgGenerated.split(/\s+/).length}</span>
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Read Time</span>
-                          <span style={{ fontSize: '0.85rem', color: '#f8fafc', fontWeight: 700 }}>{Math.ceil(dealMsgGenerated.split(/\s+/).length / 200)} min</span>
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Aura Level</span>
-                          <span style={{ fontSize: '0.85rem', color: '#a78bfa', fontWeight: 700 }}>100% PURE</span>
-                        </div>
+                    <div style={{ width: '330px', marginTop: '16px', background: 'rgba(255,255,255,0.02)', padding: '14px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          {aura.text}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: aura.color, fontWeight: 800 }}>
+                          {aura.score}% PURE
+                        </span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', background: 'rgba(16,185,129,0.1)', borderRadius: '20px', border: '1px solid rgba(16,185,129,0.2)' }}>
-                        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#34d399', boxShadow: '0 0 8px #34d399' }} />
-                        <span style={{ fontSize: '0.7rem', color: '#34d399', fontWeight: 700 }}>Spam Score: Safe</span>
+
+                      {/* Progress bar */}
+                      <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden', marginBottom: '10px' }}>
+                        <div style={{ width: `${aura.score}%`, height: '100%', background: `linear-gradient(to right, #8b5cf6, ${aura.color})`, transition: 'all 0.6s cubic-bezier(0.16, 1, 0.3, 1)' }} />
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                          <span>Words: <b>{dealMsgGenerated.split(/\s+/).length}</b></span>
+                          <span>Time: <b>{Math.ceil(dealMsgGenerated.split(/\s+/).length / 200)}m</b></span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '3px 8px', background: 'rgba(16,185,129,0.08)', borderRadius: '12px', border: '1px solid rgba(16,185,129,0.15)' }}>
+                          <span style={{ display: 'inline-block', width: '5px', height: '5px', borderRadius: '50%', background: '#10b981' }} />
+                          <span style={{ color: '#10b981', fontWeight: 700 }}>Safe</span>
+                        </div>
                       </div>
                     </div>
                   )}
                 </div>
               </div>
+
+              {/* STICKY FLOATING CONTROL ACTION BAR (ALWAYS VISIBLE WHEN MSG GENERATED) */}
+              {dealMsgGenerated && (
+                <div style={{
+                  position: 'sticky',
+                  bottom: '24px',
+                  left: 0,
+                  right: 0,
+                  background: 'rgba(13, 17, 38, 0.85)',
+                  backdropFilter: 'blur(20px)',
+                  border: '1px solid rgba(139, 92, 246, 0.3)',
+                  borderRadius: '20px',
+                  padding: '16px 24px',
+                  marginTop: '32px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  boxShadow: '0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(139, 92, 246, 0.1)',
+                  zIndex: 100,
+                  animation: 'fadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1)'
+                }}>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>FORGER STATUS UPLINK</span>
+                    <span style={{ fontSize: '0.78rem', color: dealDirectSendStatus.includes('Error') ? '#f87171' : dealDirectSendStatus.includes('Success') ? '#34d399' : '#fff', fontWeight: 700, fontFamily: 'monospace' }}>
+                      {dealDirectSendStatus || '⚡ READY FOR BROADCAST'}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '12px' }}>
+
+                    {/* Magic Aura Enhancer button */}
+                    <button
+                      type="button"
+                      onClick={toggleAuraEnhancement}
+                      style={{
+                        padding: '10px 18px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
+                        background: magicAuraEnhanced ? 'rgba(192,132,252,0.15)' : 'rgba(255,255,255,0.03)',
+                        border: `1px solid ${magicAuraEnhanced ? 'rgba(192,132,252,0.4)' : 'rgba(255,255,255,0.1)'}`,
+                        color: magicAuraEnhanced ? '#d8b4fe' : 'var(--text-muted)',
+                        display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.25s'
+                      }}>
+                      ✨ {magicAuraEnhanced ? 'Enhanced' : 'Enhance Aura'}
+                    </button>
+
+                    {/* Copy button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(dealMsgGenerated);
+                        setDealMsgCopied(true);
+                        setTimeout(() => setDealMsgCopied(false), 2000);
+                      }}
+                      style={{
+                        padding: '10px 18px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
+                        background: dealMsgCopied ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.03)',
+                        border: `1px solid ${dealMsgCopied ? 'rgba(16,185,129,0.4)' : 'rgba(255,255,255,0.1)'}`,
+                        color: dealMsgCopied ? '#34d399' : '#fff',
+                        display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.25s'
+                      }}>
+                      📋 {dealMsgCopied ? 'Copied Payload!' : 'Copy Payload'}
+                    </button>
+
+                    {/* Massive pulsing UPLINK DIRECT SEND button */}
+                    <button
+                      type="button"
+                      onClick={handleDirectSend}
+                      disabled={isDealDirectSending}
+                      style={{
+                        padding: '10px 24px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 800, cursor: isDealDirectSending ? 'wait' : 'pointer',
+                        background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
+                        border: 'none', color: '#fff',
+                        display: 'flex', alignItems: 'center', gap: '8px',
+                        boxShadow: '0 0 20px rgba(139,92,246,0.3)',
+                        transition: 'all 0.25s',
+                        animation: !isDealDirectSending ? 'pulseGlowPurple 2.0s infinite' : 'none'
+                      }}>
+                      <svg style={{ width: '14px', height: '14px' }} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                      {isDealDirectSending ? 'TRANSMITTING...' : `SEND DIRECT TO @${dealMsgFields.buyer_username || 'BUYER'}`}
+                    </button>
+
+                  </div>
+                </div>
+              )}
+
+              {/* Pulsing animation styles for bottom buttons */}
+              <style>{`
+                @keyframes pulseGlowPurple {
+                  0%, 100% { box-shadow: 0 0 12px rgba(139,92,246,0.35); }
+                  50% { box-shadow: 0 0 22px rgba(139,92,246,0.65); transform: translateY(-1px); }
+                }
+              `}</style>
+
             </div>
           );
         })()}
