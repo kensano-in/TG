@@ -452,6 +452,8 @@ def init_db():
         response TEXT
     )
     """)
+    # Commit table creations to ensure they aren't rolled back by subsequent migration exceptions
+    conn.commit()
     
     # Run migrations for language and tone in messages table
     # NOTE: We must handle BOTH sqlite3.OperationalError (SQLite) AND psycopg2 DuplicateColumn errors (PostgreSQL)
