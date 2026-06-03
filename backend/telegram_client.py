@@ -25,6 +25,48 @@ if "," in raw_owner_id:
 else:
     OWNER_ID = int(raw_owner_id)
 
+async def trigger_webhook(event_type, data):
+    import urllib.request
+    import json
+    try:
+        webhooks = db.get_all_webhooks()
+        for wh in webhooks:
+            events_str = wh.get("events", "")
+            events = [x.strip() for x in events_str.split(",") if x.strip()]
+            if "*" in events or event_type in events:
+                url = wh.get("url")
+                secret = wh.get("secret_token")
+                
+                headers = {
+                    "Content-Type": "application/json",
+                    "User-Agent": "Coet-System-Webhook-Agent"
+                }
+                if secret:
+                    headers["X-Coet-Secret"] = secret
+                    
+                payload = {
+                    "event": event_type,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "data": data
+                }
+                
+                def do_post(target_url, headers_dict, body_data):
+                    try:
+                        req = urllib.request.Request(
+                            target_url, 
+                            data=json.dumps(body_data).encode("utf-8"),
+                            headers=headers_dict,
+                            method="POST"
+                        )
+                        with urllib.request.urlopen(req, timeout=5.0) as response:
+                            response.read()
+                    except Exception as e:
+                        print(f"Webhook dispatch failed to {target_url}: {e}")
+                
+                asyncio.create_task(asyncio.to_thread(do_post, url, headers, payload))
+    except Exception as e:
+        print(f"Error triggering webhooks: {e}")
+
 class TelegramManager:
     def __init__(self):
         self.client = None
@@ -55,6 +97,17 @@ class TelegramManager:
         t = re.sub(r'[^a-zA-Z0-9\s]', '', t)
         # Normalize multiple spaces, strip, and lowercase
         return " ".join(t.split()).strip().lower()
+
+    def append_custom_signature(self, text):
+        if not text:
+            return text
+        if "Non-Transactional Query Detected" in text or "Coet Executive Daily Briefing" in text:
+            return text
+        custom_sig = db.get_setting("custom_signature", "")
+        if custom_sig and custom_sig.strip() and custom_sig.strip() not in text:
+            return f"{text}\n\n{custom_sig.strip()}"
+        return text
+
 
     async def connect(self):
         if self.client is None:
@@ -488,9 +541,97 @@ class TelegramManager:
         try:
             loop = asyncio.get_event_loop()
             loop.create_task(self.periodic_style_rebuilder())
+            loop.create_task(self.periodic_broadcast_scheduler())
         except Exception as e:
-            db.log_event("WARNING", f"Failed to start periodic style rebuilder: {e}")
+            db.log_event("WARNING", f"Failed to start background loops: {e}")
         
+        async def check_forwarding_rules(event):
+            chat_id = event.chat_id
+            text = event.text or ""
+            
+            # --- Channel Mirroring Expansion ---
+            mirror_cfg = db.get_setting("mirror_target_channels", "")
+            if mirror_cfg:
+                try:
+                    # Parse configurations e.g., "-100123:-100456,-100789:-100654"
+                    mappings = {}
+                    for item in mirror_cfg.split(","):
+                        if ":" in item:
+                            src, tgt = item.split(":", 1)
+                            mappings[int(src.strip())] = int(tgt.strip())
+                    
+                    if chat_id in mappings:
+                        target_id = mappings[chat_id]
+                        
+                        # Apply mirror configurations
+                        link_stripping = db.get_setting("mirror_link_stripping", "1") == "1"
+                        watermark = db.get_setting("mirror_watermark_text", "")
+                        replacements = db.get_setting("mirror_word_replacements", "")
+                        delay_str = db.get_setting("mirror_delay_sec", "0")
+                        
+                        processed_text = text
+                        if link_stripping:
+                            import re
+                            # Strip http/https links
+                            processed_text = re.sub(r'https?://\S+', '', processed_text)
+                            # Strip t.me links
+                            processed_text = re.sub(r't\.me/\S+', '', processed_text)
+                            # Strip usernames
+                            processed_text = re.sub(r'@\w+', '', processed_text)
+                            
+                        if replacements:
+                            for rep in replacements.split(","):
+                                if "->" in rep:
+                                    old_w, new_w = rep.split("->", 1)
+                                    processed_text = processed_text.replace(old_w.strip(), new_w.strip())
+                                    
+                        if watermark:
+                            processed_text = f"{processed_text}\n\n{watermark}"
+                            
+                        # Apply delay
+                        try:
+                            delay = float(delay_str)
+                            if delay > 0:
+                                await asyncio.sleep(delay)
+                        except ValueError:
+                            pass
+                            
+                        # Forward/Send message
+                        if event.media:
+                            await self.client.send_message(target_id, processed_text, file=event.media, parse_mode="html")
+                        else:
+                            await self.client.send_message(target_id, processed_text, parse_mode="html")
+                        db.log_event("INFO", f"Channel mirrored from {chat_id} to {target_id}")
+                except Exception as me:
+                    db.log_event("WARNING", f"Failed mirroring channel post from {chat_id}: {me}")
+            # --- End Channel Mirroring ---
+
+            if not text:
+                return
+            
+            rules = db.get_all_forwarding_rules()
+            active_rules = [r for r in rules if r["source_chat_id"] == chat_id and r["enabled"] == 1]
+            for rule in active_rules:
+                kw_list = [k.strip().lower() for k in rule["keywords"].split(",") if k.strip()]
+                match = False
+                if "*" in kw_list or not kw_list:
+                    match = True
+                else:
+                    for kw in kw_list:
+                        if kw in text.lower():
+                            match = True
+                            break
+                if match:
+                    try:
+                        await self.client.send_message(
+                            rule["target_chat_id"], 
+                            f"📢 <b>Forwarded from Sync Rule</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n{text}", 
+                            parse_mode="html"
+                        )
+                        db.log_event("INFO", f"Synced message from {chat_id} to {rule['target_chat_id']}")
+                    except Exception as ef:
+                        db.log_event("WARNING", f"Failed to forward message from {chat_id} to {rule['target_chat_id']}: {str(ef)}")
+
         # 1. Incoming Message Handler
         @self.client.on(events.NewMessage(incoming=True))
         async def on_incoming_message(event):
@@ -505,9 +646,18 @@ class TelegramManager:
                     pass
 
         async def process_message(event):
+            # Whitelisted group/channel check
             if not event.is_private:
-                return # Only handle DM messages
-                
+                joined_chats = db.get_all_joined_chats()
+                whitelisted_ids = [c["chat_id"] for c in joined_chats if c["whitelisted"] == 1]
+                if event.chat_id not in whitelisted_ids:
+                    # Not whitelisted, check forwarding rules anyway
+                    await check_forwarding_rules(event)
+                    return
+            
+            # Check forwarding rules for all messages
+            await check_forwarding_rules(event)
+
             sender = await event.get_sender()
             if not sender or sender.bot:
                 return # Ignore bots
@@ -516,9 +666,44 @@ class TelegramManager:
             sender_name = f"{sender.first_name or ''} {sender.last_name or ''}".strip()
             username = sender.username or ""
             text = event.text or ""
-            
             is_shinichiro = (sender_id == 7473010693) or (username and username.lower() == "shinichirofr")
             
+            # 1. Check if CAPTCHA answer is pending
+            if not event.is_private:
+                ans_saved = db.get_setting(f"captcha_ans_{event.chat_id}_{sender_id}")
+                if ans_saved:
+                    if text.strip() == ans_saved:
+                        try:
+                            # Unmute user
+                            await self.client.edit_permissions(event.chat_id, sender_id, send_messages=True)
+                            await event.respond("✅ Correct! You have been unmuted. Welcome to the group!")
+                            db.set_setting(f"captcha_ans_{event.chat_id}_{sender_id}", "")
+                        except Exception as ep:
+                            db.log_event("WARNING", f"Failed to unmute user {sender_id}: {str(ep)}")
+                    else:
+                        # Delete incorrect captcha answer
+                        try:
+                            await event.delete()
+                        except Exception:
+                            pass
+                    return # Block further processing
+            
+            # 2. Check for Copycat / Scammers
+            if not event.is_private and not is_shinichiro and sender_id != self.owner_id:
+                name_lower = sender_name.lower()
+                username_lower = username.lower()
+                if "catvos" in name_lower or "catvos" in username_lower or "coet" in name_lower:
+                    try:
+                        await self.client.kick_participant(event.chat_id, sender_id)
+                        await event.delete()
+                        db.log_event("WARNING", f"Shield: Impersonator {sender_name} banned from group {event.chat_id}")
+                        db.log_threat("impersonation_ban", sender_id, username or "", event.chat_id, f"Blocked copycat user matching admin username/display name patterns: name='{sender_name}', username='{username}'")
+                        await trigger_webhook("on_scam_blocked", {"sender_id": sender_id, "sender_name": sender_name, "username": username or "", "chat_id": event.chat_id})
+                        self.send_bot_notification(f"🛡️ <b>Anti-Scam Shield:</b> Copycat impersonator banned!\nName: {sender_name}\nID: {sender_id}\nGroup: {event.chat_id}")
+                    except Exception as eb:
+                        db.log_event("WARNING", f"Failed to ban copycat: {str(eb)}")
+                    return
+
             # Security Command Shield: Ignore commands from other users (except Sensei)
             if text.strip().startswith("/") and not is_shinichiro:
                 return
@@ -583,37 +768,38 @@ class TelegramManager:
                     return
 
             # Scam & Impersonator Screening Shield
-            clean_username = username.lower().strip()
-            clean_name = sender_name.lower().strip()
-            is_suspicious_impersonator = False
-            if not self.is_owner(sender_id):
-                # Flag if user username or display name matches owner's username and tries to pose as admin/support
-                if "catvos" in clean_username and any(x in clean_username for x in ["admin", "support", "escrow", "deal", "middleman", "staff", "mod"]):
-                    is_suspicious_impersonator = True
-                elif "catvos" in clean_name and any(x in clean_name for x in ["admin", "support", "escrow", "deal", "middleman", "staff", "mod"]):
-                    is_suspicious_impersonator = True
+            if db.get_setting("enable_scam_shield", "1") == "1":
+                clean_username = username.lower().strip()
+                clean_name = sender_name.lower().strip()
+                is_suspicious_impersonator = False
+                if not self.is_owner(sender_id):
+                    # Flag if user username or display name matches owner's username and tries to pose as admin/support
+                    if "catvos" in clean_username and any(x in clean_username for x in ["admin", "support", "escrow", "deal", "middleman", "staff", "mod"]):
+                        is_suspicious_impersonator = True
+                    elif "catvos" in clean_name and any(x in clean_name for x in ["admin", "support", "escrow", "deal", "middleman", "staff", "mod"]):
+                        is_suspicious_impersonator = True
+                        
+                if is_suspicious_impersonator:
+                    db.get_or_create_contact(sender_id, sender.first_name, sender.last_name, username)
+                    db.update_contact(sender_id, category="scammer", is_muted=1)
+                    db.add_message(sender_id, 'contact', text)
+                    db.log_event("WARNING", f"🚨 SCAM SHIELD TRIGGERED: Impersonator blocked {sender_name} (@{username}).")
                     
-            if is_suspicious_impersonator:
-                db.get_or_create_contact(sender_id, sender.first_name, sender.last_name, username)
-                db.update_contact(sender_id, category="scammer", is_muted=1)
-                db.add_message(sender_id, 'contact', text)
-                db.log_event("WARNING", f"🚨 SCAM SHIELD TRIGGERED: Impersonator blocked {sender_name} (@{username}).")
-                
-                alert_text = (
-                    f"🚨 <b>SCAM SHIELD TRIGGERED!</b>\n\n"
-                    f"<b>Contact:</b> {sender_name} (@{username})\n"
-                    f"<b>ID:</b> {sender_id}\n\n"
-                    f"<i>This user username/display name contains suspicious variations of your credentials. "
-                    f"They have been auto-flagged as a <b>scammer</b> and <b>muted</b> in database.</i>"
-                )
-                self.send_bot_notification(alert_text)
-                
-                await self.broadcast_ws("analysis_update", {
-                    "telegram_id": sender_id,
-                    "suggested_category": "scammer",
-                    "is_muted": 1
-                })
-                return
+                    alert_text = (
+                        f"🚨 <b>SCAM SHIELD TRIGGERED!</b>\n\n"
+                        f"<b>Contact:</b> {sender_name} (@{username})\n"
+                        f"<b>ID:</b> {sender_id}\n\n"
+                        f"<i>This user username/display name contains suspicious variations of your credentials. "
+                        f"They have been auto-flagged as a <b>scammer</b> and <b>muted</b> in database.</i>"
+                    )
+                    self.send_bot_notification(alert_text)
+                    
+                    await self.broadcast_ws("analysis_update", {
+                        "telegram_id": sender_id,
+                        "suggested_category": "scammer",
+                        "is_muted": 1
+                    })
+                    return
             
             # Download and transcribe voice notes natively via Gemini
             if event.message.voice:
@@ -654,11 +840,18 @@ class TelegramManager:
             if sender_id not in self.flood_trackers:
                 self.flood_trackers[sender_id] = []
             
-            # Clean old timestamps (keep last 10 seconds sliding window)
-            self.flood_trackers[sender_id] = [t for t in self.flood_trackers[sender_id] if now - t < 10]
+            # Clean old timestamps (keep last 60 seconds sliding window)
+            self.flood_trackers[sender_id] = [t for t in self.flood_trackers[sender_id] if now - t < 60]
             self.flood_trackers[sender_id].append(now)
             
-            if len(self.flood_trackers[sender_id]) > 5:
+            # Retrieve threshold from database
+            antispam_setting = db.get_setting("antispam_message_threshold", "10")
+            try:
+                antispam_threshold = int(antispam_setting)
+            except ValueError:
+                antispam_threshold = 10
+                
+            if antispam_threshold > 0 and len(self.flood_trackers[sender_id]) > antispam_threshold:
                 # Spammer flagged! Auto-mute in SQLite and notify
                 db.update_contact(sender_id, is_muted=1)
                 db.log_event("WARNING", f"Spam flood detected from {sender_name} ({sender_id}). Automatically muted contact.")
@@ -668,7 +861,7 @@ class TelegramManager:
                     f"⚠️ <b>Anti-Spam Flood Alert!</b>\n\n"
                     f"<b>Contact:</b> {sender_name} (@{username})\n"
                     f"<b>ID:</b> {sender_id}\n\n"
-                    f"<i>Sender triggered flood control by dispatching {len(self.flood_trackers[sender_id])} messages in under 10 seconds. "
+                    f"<i>Sender triggered flood control by dispatching {len(self.flood_trackers[sender_id])} messages in under 60 seconds (threshold: {antispam_threshold} messages/min). "
                     f"The contact category has been preserved but communication has been automatically <b>muted</b>.</i>"
                 )
                 self.send_bot_notification(alert_text)
@@ -747,14 +940,19 @@ class TelegramManager:
 
             # Check maximum reply limit per contact session (5 replies), except for shinichirofr
             is_shinichiro = (sender_id == 7473010693) or (username and username.lower() == "shinichirofr")
-            reply_limit = 5
+            session_limit_setting = db.get_setting("session_response_limit", "5")
+            try:
+                reply_limit = int(session_limit_setting)
+            except ValueError:
+                reply_limit = 5
+
             replies_sent = db.get_assistant_reply_count_since_last_owner(sender_id)
-            if replies_sent >= reply_limit and not is_shinichiro:
+            if reply_limit > 0 and replies_sent >= reply_limit and not is_shinichiro:
                 if replies_sent == reply_limit:
                     warning_msg = (
                         f"<b>SYSTEM PROTOCOL: SESSION LIMIT REACHED</b>\n"
                         f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                        f"<blockquote>Hello, {sender_name}. My system autopilot session is capped at 5 replies to ensure the founder personally reviews and coordinates complex inquiries.\n\n"
+                        f"<blockquote>Hello, {sender_name}. My system autopilot session is capped at {reply_limit} replies to ensure the founder personally reviews and coordinates complex inquiries.\n\n"
                         f"Kindly wait; my administrator has been notified of your message and will catch up with you shortly.</blockquote>\n\n"
                         f"<b>IMMEDIATE/URGENT REACHOUT DETAILS:</b>\n"
                         f"• <b>WhatsApp</b>: <code>+1 709 700 7361</code>\n"
@@ -762,15 +960,15 @@ class TelegramManager:
                         f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                         f"<i>Note: Autopilot has paused responses for this session. Thank you. — Coet</i>"
                     )
-                    async with self.client.action(sender_id, 'typing'):
+                    async with self.client.action(event.chat_id, 'typing'):
                         await asyncio.sleep(2.0)
                         normalized = self.normalize_text_for_match(warning_msg)
                         if normalized:
                             self.assistant_sent_message_texts.add(normalized)
-                        msg = await self.client.send_message(sender_id, warning_msg, parse_mode="html")
+                        msg = await self.client.send_message(event.chat_id, warning_msg, parse_mode="html")
                         self.assistant_sent_message_ids.add(msg.id)
                     db.add_message(sender_id, 'assistant', warning_msg, sentiment='neutral', priority='normal', language='english', tone='casual')
-                    db.log_event("INFO", f"Enforced rate-limit warning (6th message) to {sender_name}.")
+                    db.log_event("INFO", f"Enforced rate-limit warning ({reply_limit + 1}th message) to {sender_name}.")
                     await self.broadcast_ws("new_message", {
                         "telegram_id": sender_id,
                         "sender": "assistant",
@@ -794,6 +992,7 @@ class TelegramManager:
                 db.log_event("INFO", f"Instant keyword rule matched for '{text[:20]}' on keyword '{rule_kw}'. Actions: {action_type}")
                 
                 if matched_response:
+                    matched_response = self.append_custom_signature(matched_response)
                     # approval_mode is resolved globally at the top of the handler
                     
                     if approval_mode:
@@ -803,13 +1002,15 @@ class TelegramManager:
                             "draft": matched_response
                         })
                     else:
-                        # Simulated human reading delay
-                        if enable_human_delays:
-                            read_delay = random.uniform(1.2, 2.8)
-                            await asyncio.sleep(read_delay)
-                        # Cognitive pause before typing
-                        if enable_human_delays:
-                            await asyncio.sleep(random.uniform(0.4, 0.9))
+                        custom_delay = contact.get("custom_delay")
+                        if custom_delay is None or custom_delay < 0:
+                            # Simulated human reading delay
+                            if enable_human_delays:
+                                read_delay = random.uniform(1.2, 2.8)
+                                await asyncio.sleep(read_delay)
+                            # Cognitive pause before typing
+                            if enable_human_delays:
+                                await asyncio.sleep(random.uniform(0.4, 0.9))
 
                         await self.send_humanized_replies(
                             sender_id=sender_id,
@@ -817,7 +1018,9 @@ class TelegramManager:
                             detected_lang='hinglish',
                             detected_tone='casual',
                             priority_val=priority_val,
-                            sender_name=sender_name
+                            sender_name=sender_name,
+                            custom_delay=custom_delay,
+                            chat_id=event.chat_id
                         )
                             
                     # Trigger memory consolidation for keyword rule responses
@@ -964,7 +1167,7 @@ class TelegramManager:
             detected_lang = analysis.get("language", "english")
             detected_tone = analysis.get("tone", "casual")
             suggested_personality = analysis.get("suggested_personality", "Warm & Helpful")
-            reply_draft = analysis.get("draft_reply", "")
+            reply_draft = self.append_custom_signature(analysis.get("draft_reply", ""))
             schedule_rem = analysis.get("schedule_reminder")
 
             # Handle Lead Developer / Sensei System Updates
@@ -1115,13 +1318,15 @@ class TelegramManager:
                     "draft": reply_draft
                 })
             else:
-                # Simulated human reading delay right before typing/sending the replies
-                if enable_human_delays:
-                    read_delay = random.uniform(1.2, 2.5)
-                    await asyncio.sleep(read_delay)
-                # Cognitive pause before starting typing
-                if enable_human_delays:
-                    await asyncio.sleep(random.uniform(0.4, 0.9))
+                custom_delay = contact.get("custom_delay")
+                if custom_delay is None or custom_delay < 0:
+                    # Simulated human reading delay right before typing/sending the replies
+                    if enable_human_delays:
+                        read_delay = random.uniform(1.2, 2.5)
+                        await asyncio.sleep(read_delay)
+                    # Cognitive pause before starting typing
+                    if enable_human_delays:
+                        await asyncio.sleep(random.uniform(0.4, 0.9))
 
                 await self.send_humanized_replies(
                     sender_id=sender_id,
@@ -1129,7 +1334,9 @@ class TelegramManager:
                     detected_lang=detected_lang,
                     detected_tone=detected_tone,
                     priority_val=priority,
-                    sender_name=sender_name
+                    sender_name=sender_name,
+                    custom_delay=custom_delay,
+                    chat_id=event.chat_id
                 )
                 # Trigger background memory consolidation for AI replies
                 asyncio.create_task(self.trigger_memory_consolidation(sender_id))
@@ -1234,12 +1441,86 @@ class TelegramManager:
                 "text": ""
             })
             
+        # Chat Action Handler (Captcha Gate & Welcome Messages)
+        @self.client.on(events.ChatAction())
+        async def on_chat_action(event):
+            if event.user_joined or event.user_added:
+                chat_id = event.chat_id
+                joined_chats = db.get_all_joined_chats()
+                whitelisted_ids = [c["chat_id"] for c in joined_chats if c["whitelisted"] == 1]
+                if chat_id in whitelisted_ids:
+                    if db.get_setting("enable_captcha_gate", "0") == "1":
+                        import random
+                        num1 = random.randint(1, 9)
+                        num2 = random.randint(1, 9)
+                        ans = num1 + num2
+                        user = await event.get_user()
+                        if not user or user.bot:
+                            return
+                        user_id = user.id
+                        user_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
+                        user_username = user.username or ""
+                        
+                        try:
+                            # Restrict permissions: mute user
+                            await self.client.edit_permissions(chat_id, user_id, send_messages=False)
+                        except Exception as ep:
+                            db.log_event("WARNING", f"Failed to restrict new member {user_id}: {str(ep)}")
+                            return
+                        
+                        db.set_setting(f"captcha_ans_{chat_id}_{user_id}", str(ans))
+                        
+                        welcome_custom = db.get_setting("welcome_custom_message", "Welcome to the group")
+                        welcome_msg = f"{welcome_custom}\n"
+                        if db.get_setting("welcome_tag_user", "1") == "1":
+                            welcome_msg = f"Welcome <a href=\"tg://user?id={user_id}\">{user_name}</a>!\n{welcome_msg}"
+                        
+                        if db.get_setting("welcome_show_captcha_hint", "1") == "1":
+                            welcome_msg += f"\nTo unmute yourself, please reply to this group with the correct answer:\n\n<b>{num1} + {num2} = ?</b>"
+                            
+                        welcome_sent_msg = await self.client.send_message(chat_id, welcome_msg, parse_mode="html")
+                        
+                        # Auto delete welcome message task
+                        delete_delay_str = db.get_setting("welcome_auto_delete_delay", "60")
+                        try:
+                            delete_delay = float(delete_delay_str)
+                        except ValueError:
+                            delete_delay = 60.0
+                            
+                        if delete_delay > 0:
+                            async def delete_after(c_id, m_id, delay):
+                                await asyncio.sleep(delay)
+                                try:
+                                    await self.client.delete_messages(c_id, [m_id])
+                                except Exception:
+                                    pass
+                            asyncio.create_task(delete_after(chat_id, welcome_sent_msg.id, delete_delay))
+
+                        # Enforce CAPTCHA timeout check
+                        async def enforce_captcha_timeout(c_id, u_id, u_nm, u_unm):
+                            await asyncio.sleep(60.0) # 60 seconds to answer
+                            ans_check = db.get_setting(f"captcha_ans_{c_id}_{u_id}")
+                            if ans_check:
+                                # Still unsolved! Kick user
+                                try:
+                                    await self.client.kick_participant(c_id, u_id)
+                                    db.set_setting(f"captcha_ans_{c_id}_{u_id}", "")
+                                    db.log_event("WARNING", f"CAPTCHA Gate: User {u_nm} kicked due to captcha timeout.")
+                                    db.log_threat("captcha_failed", u_id, u_unm, c_id, f"User '{u_nm}' failed to solve CAPTCHA within 60 seconds timeout.")
+                                    await trigger_webhook("on_captcha_failed", {"telegram_id": u_id, "username": u_unm, "chat_id": c_id, "name": u_nm})
+                                except Exception as ek:
+                                    db.log_event("WARNING", f"Failed to kick user on captcha timeout: {ek}")
+                        
+                        loop = asyncio.get_event_loop()
+                        loop.create_task(enforce_captcha_timeout(chat_id, user_id, user_name, user_username))
+
         # 4. Telegram Bot Client Incoming Message Handler
         if BOT_TOKEN and not self._bot_handler_registered:
             self._bot_handler_registered = True
             @self.bot_client.on(events.NewMessage(incoming=True))
             async def on_bot_incoming_message(event):
-                if not event.is_private:
+                enable_groups = db.get_setting("enable_group_replies", "0") == "1"
+                if not event.is_private and not enable_groups:
                     return # Only handle DM messages
                     
                 sender = await event.get_sender()
@@ -1250,6 +1531,163 @@ class TelegramManager:
                 sender_name = f"{sender.first_name or ''} {sender.last_name or ''}".strip()
                 username = sender.username or ""
                 text = event.text or ""
+
+                # --- Customer Store Bot (Multi-tenant) Logic ---
+                text_clean = text.strip()
+                if text_clean.startswith("/start"):
+                    if "COET_KEY_" in text_clean:
+                        key_parts = text_clean.split("COET_KEY_")
+                        if len(key_parts) > 1:
+                            key_full = f"COET_KEY_{key_parts[1].strip()}"
+                            lic = db.get_customer_license(key_full)
+                            if lic:
+                                if lic["status"] != "active":
+                                    await event.respond(f"❌ This license key is <b>{lic['status']}</b>.")
+                                    return
+                                
+                                if not lic["client_telegram_id"]:
+                                    conn = db.get_db_connection()
+                                    cursor = conn.cursor()
+                                    cursor.execute("UPDATE customer_licenses SET client_telegram_id = ?, client_name = ? WHERE license_key = ?", (sender_id, sender_name, key_full))
+                                    conn.commit()
+                                    conn.close()
+                                    await event.respond(f"✅ <b>License Activated!</b>\nYour store <b>{lic['store_name']}</b> is now active on @coetbot.\nUse /store to manage your products and orders.")
+                                elif lic["client_telegram_id"] == sender_id:
+                                    await event.respond(f"ℹ️ Your license is already active for store <b>{lic['store_name']}</b>.\nUse /store to manage.")
+                                else:
+                                    await event.respond("❌ This license key has already been activated by another user.")
+                            else:
+                                await event.respond("❌ Invalid license key.")
+                            return
+
+                    elif "store_" in text_clean:
+                        parts = text_clean.split("store_")
+                        if len(parts) > 1:
+                            try:
+                                client_id = int(parts[1].strip())
+                            except ValueError:
+                                client_id = None
+                            
+                            if client_id:
+                                lic = db.get_customer_license_by_client_id(client_id)
+                                if lic and lic["status"] == "active":
+                                    db.set_setting(f"buyer_store_{sender_id}", str(client_id))
+                                    products = db.get_client_products(client_id)
+                                    msg = f"🏪 Welcome to <b>{lic['store_name']}</b>!\n━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                    if not products:
+                                        msg += "Currently no products available in this store."
+                                    else:
+                                        msg += "Browse products below and click `/buy_[id]` to place an order:\n\n"
+                                        for p in products:
+                                            msg += f"📦 <b>{p['product_name']}</b> - ${p['price']}\n"
+                                            msg += f"<i>{p['description']}</i> (Stock: {p['stock_count']})\n"
+                                            msg += f"🛒 Buy: /buy_{p['id']}\n\n"
+                                    await event.respond(msg, parse_mode="html")
+                                else:
+                                    await event.respond("❌ This store is currently unavailable.")
+                            else:
+                                await event.respond("❌ Invalid store link.")
+                        return
+
+                # Check if client store commands
+                lic = db.get_customer_license_by_client_id(sender_id)
+                if lic and lic["status"] == "active":
+                    if text_clean == "/store":
+                        msg = (
+                            f"🏪 <b>Store Admin: {lic['store_name']}</b>\n"
+                            f"━━━━━━━━━━━━━━━━━━━━━━━\n"
+                            f"Use these commands to manage your storefront:\n\n"
+                            f"➕ <b>Add Product:</b>\n"
+                            f"`/addproduct [name] | [price] | [description]`\n"
+                            f"<i>Example: /addproduct Alt Account | 4.99 | High quality Russian Alt</i>\n\n"
+                            f"📋 <b>View Storefront:</b> /products\n"
+                            f"📦 <b>View Buyer Orders:</b> /orders\n"
+                        )
+                        await event.respond(msg, parse_mode="html")
+                        return
+
+                    elif text_clean.startswith("/addproduct"):
+                        parts = text_clean.replace("/addproduct", "", 1).strip().split("|")
+                        if len(parts) >= 2:
+                            name = parts[0].strip()
+                            try:
+                                price = float(parts[1].strip())
+                            except ValueError:
+                                await event.respond("❌ Invalid price format. Must be a number.")
+                                return
+                            desc = parts[2].strip() if len(parts) > 2 else ""
+                            db.add_client_product(sender_id, name, price, desc, 100)
+                            await event.respond(f"✅ Product <b>{name}</b> added successfully!")
+                        else:
+                            await event.respond("❌ Format: `/addproduct Name | Price | Description`")
+                        return
+
+                    elif text_clean == "/products":
+                        products = db.get_client_products(sender_id)
+                        msg = f"📋 <b>Your Store Products ({lic['store_name']}):</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n"
+                        if not products:
+                            msg += "No products found. Add one with /addproduct."
+                        else:
+                            for p in products:
+                                msg += f"📦 <b>{p['product_name']}</b> - ${p['price']}\n"
+                                msg += f"Delete: /deleteproduct_{p['id']}\n\n"
+                        await event.respond(msg, parse_mode="html")
+                        return
+
+                    elif text_clean.startswith("/deleteproduct_"):
+                        try:
+                            p_id = int(text_clean.split("_")[1].strip())
+                            db.delete_client_product(p_id, sender_id)
+                            await event.respond("✅ Product deleted.")
+                        except Exception:
+                            await event.respond("❌ Invalid product ID.")
+                        return
+
+                    elif text_clean == "/orders":
+                        orders = db.get_client_orders(sender_id)
+                        msg = f"📦 <b>Pending Buyer Orders:</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n"
+                        pending_orders = [o for o in orders if o["status"] == "pending"]
+                        if not pending_orders:
+                            msg += "No pending orders."
+                        else:
+                            for o in pending_orders:
+                                msg += f"👤 Buyer: {o['buyer_name']} (ID: {o['buyer_telegram_id']})\n"
+                                msg += f"🛒 Product: {o['product_name']} (${o['amount']})\n"
+                                msg += f"Complete: /completeorder_{o['id']}  | Cancel: /cancelorder_{o['id']}\n\n"
+                        await event.respond(msg, parse_mode="html")
+                        return
+                    
+                    elif text_clean.startswith("/completeorder_") or text_clean.startswith("/cancelorder_"):
+                        status = "completed" if "completeorder_" in text_clean else "cancelled"
+                        try:
+                            o_id = int(text_clean.split("_")[1].strip())
+                            db.update_client_order_status(o_id, sender_id, status)
+                            await event.respond(f"✅ Order status updated to {status}.")
+                        except Exception:
+                            await event.respond("❌ Invalid order ID.")
+                        return
+
+                # Check if buyer commands (e.g. /buy_ID)
+                buyer_store_str = db.get_setting(f"buyer_store_{sender_id}")
+                if buyer_store_str:
+                    client_id = int(buyer_store_str)
+                    if text_clean.startswith("/buy_"):
+                        try:
+                            p_id = int(text_clean.split("_")[1].strip())
+                            products = db.get_client_products(client_id)
+                            prod = next((p for p in products if p["id"] == p_id), None)
+                            if prod:
+                                db.add_client_order(client_id, sender_id, sender_name, p_id, prod["price"])
+                                await event.respond(f"✅ <b>Order Placed!</b>\nYour order for <b>{prod['product_name']}</b> (${prod['price']}) is pending approval.\nThe store owner has been notified.")
+                                try:
+                                    await self.bot_client.send_message(client_id, f"🔔 <b>New Order Received!</b>\nBuyer {sender_name} (ID: {sender_id}) ordered <b>{prod['product_name']}</b> for ${prod['price']}.\nView details in /orders.")
+                                except Exception:
+                                    pass
+                            else:
+                                await event.respond("❌ Product not found.")
+                        except Exception:
+                            await event.respond("❌ Failed to process purchase command.")
+                        return
                 
                 db.log_event("INFO", f"🤖 Bot received message from {sender_name} ({sender_id}): {text[:50]}")
                 
@@ -2755,6 +3193,64 @@ class TelegramManager:
             
         cmd_norm = cmd[1:] if cmd.startswith("/") else cmd
         
+        # Check in custom_commands table
+        custom_cmd = db.get_custom_command(cmd_norm)
+        if custom_cmd:
+            try:
+                await event.delete()
+            except Exception:
+                pass
+            template = custom_cmd["response_template"]
+            import json
+            variables_json = custom_cmd.get("variables", "{}")
+            try:
+                variables = json.loads(variables_json) if isinstance(variables_json, str) else variables_json
+            except Exception:
+                variables = {}
+            
+            try:
+                formatted_response = template.format(**variables)
+            except Exception:
+                formatted_response = template
+                
+            if is_bot:
+                await self.bot_client.send_message(event.chat_id, formatted_response, parse_mode="html")
+            else:
+                await self.client.send_message(event.chat_id, formatted_response, parse_mode="html")
+            return
+
+        # Check in payment_methods table
+        payment_method = db.get_payment_method_by_command(cmd_norm)
+        if payment_method:
+            try:
+                await event.delete()
+            except Exception:
+                pass
+            
+            caption = f"💳 <b>{payment_method['label'].upper()}</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n"
+            if payment_method.get('network'):
+                caption += f"Network: <code>{payment_method['network']}</code>\n"
+            caption += f"Address: <code>{payment_method['value']}</code>\n\n"
+            caption += f"<i>Double-check details before proceeding.</i>"
+            
+            qr_path = payment_method.get('qr_image_path')
+            import os
+            has_qr = False
+            if qr_path and os.path.exists(qr_path):
+                has_qr = True
+                
+            if is_bot:
+                if has_qr:
+                    await self.bot_client.send_file(event.chat_id, file=qr_path, caption=caption, parse_mode="html")
+                else:
+                    await self.bot_client.send_message(event.chat_id, caption, parse_mode="html")
+            else:
+                if has_qr:
+                    await self.client.send_file(event.chat_id, file=qr_path, caption=caption, parse_mode="html")
+                else:
+                    await self.client.send_message(event.chat_id, caption, parse_mode="html")
+            return
+
         # Intercept graphical admin dashboard requests
         if cmd_norm in ["start", "help"]:
             if is_bot:
@@ -3477,16 +3973,21 @@ class TelegramManager:
         if contact.get('is_muted') == 1:
             return
             
-        # Check maximum reply limit per contact session (5 replies)
+        # Check maximum reply limit per contact session
         is_shinichiro = (sender_id == 7473010693) or (username and username.lower() == "shinichirofr")
-        reply_limit = 5
+        session_limit_setting = db.get_setting("session_response_limit", "5")
+        try:
+            reply_limit = int(session_limit_setting)
+        except ValueError:
+            reply_limit = 5
+
         replies_sent = db.get_assistant_reply_count_since_last_owner(sender_id)
-        if replies_sent >= reply_limit and not is_shinichiro:
+        if reply_limit > 0 and replies_sent >= reply_limit and not is_shinichiro:
             if replies_sent == reply_limit:
                 warning_msg = (
                     f"<b>SYSTEM PROTOCOL: SESSION LIMIT REACHED</b>\n"
                     f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"<blockquote>Hello, {sender_name}. My system autopilot session is capped at 5 replies to ensure the founder personally reviews and coordinates complex inquiries.\n\n"
+                    f"<blockquote>Hello, {sender_name}. My system autopilot session is capped at {reply_limit} replies to ensure the founder personally reviews and coordinates complex inquiries.\n\n"
                     f"Kindly wait; my administrator has been notified of your message and will catch up with you shortly.</blockquote>\n\n"
                     f"<b>IMMEDIATE/URGENT REACHOUT DETAILS:</b>\n"
                     f"• <b>WhatsApp</b>: <code>+1 709 700 7361</code>\n"
@@ -3494,11 +3995,11 @@ class TelegramManager:
                     f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                     f"<i>Note: Autopilot has paused responses for this session. Thank you. — Coet</i>"
                 )
-                async with event.client.action(sender_id, 'typing'):
+                async with event.client.action(event.chat_id, 'typing'):
                     await asyncio.sleep(2.0)
                     await event.respond(warning_msg, parse_mode="html")
                 db.add_message(sender_id, 'assistant', warning_msg, sentiment='neutral', priority='normal', language='english', tone='casual')
-                db.log_event("INFO", f"Enforced bot rate-limit warning (6th message) to {sender_name}.")
+                db.log_event("INFO", f"Enforced bot rate-limit warning ({reply_limit + 1}th message) to {sender_name}.")
                 await self.broadcast_ws("new_message", {
                     "telegram_id": sender_id,
                     "sender": "assistant",
@@ -3589,16 +4090,20 @@ class TelegramManager:
             if system_update and is_shinichiro:
                 await self.apply_system_update(system_update, sender_id, username, sender_name)
 
-            reply = analysis.get("draft_reply", "")
+            reply = self.append_custom_signature(analysis.get("draft_reply", ""))
             
             # Simulate natural typing delay using setting limits with random factor
             try:
-                delay_min = float(db.get_setting("reply_delay_min", "1.2"))
-                delay_max = float(db.get_setting("reply_delay_max", "4.0"))
+                custom_delay = contact.get("custom_delay")
+                if custom_delay is not None and custom_delay >= 0:
+                    typing_delay = float(custom_delay)
+                else:
+                    delay_min = float(db.get_setting("reply_delay_min", "1.2"))
+                    delay_max = float(db.get_setting("reply_delay_max", "4.0"))
+                    import random
+                    typing_delay = random.uniform(delay_min, delay_max)
             except Exception:
-                delay_min, delay_max = 1.2, 4.0
-            import random
-            typing_delay = random.uniform(delay_min, delay_max)
+                typing_delay = 2.0
             elapsed = time.time() - start_time
             if elapsed < typing_delay:
                 await asyncio.sleep(typing_delay - elapsed)
@@ -3654,7 +4159,69 @@ class TelegramManager:
             except Exception as e:
                 db.log_event("ERROR", f"Error in periodic style rebuilder task: {e}")
 
-    async def send_humanized_replies(self, sender_id, text, detected_lang, detected_tone, priority_val, sender_name):
+    async def periodic_broadcast_scheduler(self):
+        """Checks for pending scheduled broadcast tasks every 60 seconds and dispatches them."""
+        db.log_event("INFO", "Periodic Smart Broadcast Scheduler task started.")
+        while True:
+            try:
+                await asyncio.sleep(60)
+                now_str = datetime.utcnow().isoformat() + "Z"
+                pending_tasks = db.get_pending_scheduled_tasks(now_str)
+                if not pending_tasks:
+                    continue
+                    
+                db.log_event("INFO", f"📅 Found {len(pending_tasks)} pending scheduled tasks to run.")
+                for task in pending_tasks:
+                    task_id = task["id"]
+                    # Mark task as sent immediately to avoid duplicate sends
+                    db.update_scheduled_task_status(task_id, "sent")
+                    
+                    telegram_id = task.get("telegram_id")
+                    category = task.get("category")
+                    message_template = task.get("message")
+                    
+                    # 1. Resolve targets
+                    targets = []
+                    if telegram_id:
+                        contact = db.get_contact(telegram_id)
+                        if contact:
+                            targets.append(contact)
+                    elif category:
+                        target_cat = category.lower()
+                        contacts = db.get_all_contacts()
+                        for c in contacts:
+                            if target_cat == "all" or c.get("category", "").lower() == target_cat:
+                                # Skip muted contacts
+                                if c.get("is_muted") == 1:
+                                    continue
+                                targets.append(c)
+                                
+                    if not targets:
+                        db.log_event("WARNING", f"📅 Scheduled task {task_id} had no valid targets. Skipping.")
+                        continue
+                        
+                    # 2. Dispatch humanized broadcasts
+                    db.log_event("INFO", f"📅 Dispatching scheduled task {task_id} to {len(targets)} contacts...")
+                    for c in targets:
+                        try:
+                            name = c.get("first_name", "")
+                            text_formatted = message_template.replace("{first_name}", name)
+                            
+                            # Send message
+                            await self.send_custom_reply(c["telegram_id"], text_formatted)
+                            # Save message to history
+                            db.add_message(c["telegram_id"], 'assistant', text_formatted, sentiment='neutral', priority='normal', language='english', tone='casual')
+                            db.log_event("INFO", f"📅 Scheduled message sent to {name} (ID: {c['telegram_id']})")
+                            
+                            # Sleep briefly between sends to look human and avoid anti-spam
+                            await asyncio.sleep(2.5)
+                        except Exception as send_ex:
+                            db.log_event("ERROR", f"📅 Scheduled send error for target ID {c.get('telegram_id')}: {send_ex}")
+                            
+            except Exception as e:
+                db.log_event("ERROR", f"Error in periodic broadcast scheduler: {e}")
+
+    async def send_humanized_replies(self, sender_id, text, detected_lang, detected_tone, priority_val, sender_name, custom_delay=None, chat_id=None):
         """
         Sends message(s) simulating natural human texting flows:
         - Splits long or multi-paragraph messages into consecutive messages if enabled.
@@ -3666,6 +4233,31 @@ class TelegramManager:
         import re
         import asyncio
         import time as _time
+
+        dest_id = chat_id if chat_id is not None else sender_id
+
+        # Apply contact-specific delay override if present
+        if custom_delay is not None and custom_delay >= 0:
+            db.log_event("INFO", f"Applying contact-specific custom reply delay override of {custom_delay}s for {sender_name}")
+            await asyncio.sleep(float(custom_delay))
+            
+            # Show a brief typing action for realism
+            async with self.client.action(sender_id, 'typing'):
+                await asyncio.sleep(max(0.5, min(2.0, float(custom_delay) * 0.1)))
+                
+            normalized = self.normalize_text_for_match(text)
+            if normalized:
+                self.assistant_sent_message_texts.add(normalized)
+            msg = await self.client.send_message(sender_id, text)
+            self.assistant_sent_message_ids.add(msg.id)
+            db.add_message(sender_id, 'assistant', text, sentiment='neutral', priority=priority_val, language=detected_lang, tone=detected_tone)
+            db.log_event("INFO", f"Auto-replied (custom delay override) to {sender_name}: {text}")
+            await self.broadcast_ws("new_message", {
+                "telegram_id": sender_id,
+                "sender": "assistant",
+                "text": text
+            })
+            return
         
         # Load humanization settings
         enable_human_delays = db.get_setting("enable_human_delays", "1") == "1"
@@ -3736,7 +4328,7 @@ class TelegramManager:
             else:
                 await asyncio.sleep(0.05)
                 
-            async with self.client.action(sender_id, 'typing'):
+            async with self.client.action(dest_id, 'typing'):
                 if enable_human_delays:
                     char_delay = len(part) * 0.025
                     typing_delay = max(1.0, min(4.5, char_delay + random.uniform(-0.3, 0.4)))
@@ -3763,7 +4355,7 @@ class TelegramManager:
                 if normalized:
                     self.assistant_sent_message_texts.add(normalized)
                     
-                msg = await self.client.send_message(sender_id, typo_part)
+                msg = await self.client.send_message(dest_id, typo_part)
                 self.assistant_sent_message_ids.add(msg.id)
                 db.add_message(sender_id, 'assistant', typo_part, sentiment='neutral', priority=priority_val, language=detected_lang, tone=detected_tone)
                 db.log_event("INFO", f"Auto-replied (part {part_idx+1}/{len(parts)}) to {sender_name}: {typo_part}")
@@ -3813,6 +4405,91 @@ class TelegramManager:
             return {"status": "success"}
         except Exception as e:
             db.log_event("ERROR", f"Failed to send manual response: {str(e)}")
+            return {"status": "error", "message": str(e)}
+
+    async def join_group_or_channel(self, link: str):
+        """Parses invite links (public or private) and attempts to join the chat/channel."""
+        await self.connect()
+        from telethon.tl.functions.channels import JoinChannelRequest
+        from telethon.tl.functions.messages import ImportChatInviteRequest
+        
+        try:
+            # Parse link
+            link = link.strip()
+            # Remove schema prefix if present
+            if link.startswith("https://t.me/"):
+                link = link.replace("https://t.me/", "")
+            elif link.startswith("t.me/"):
+                link = link.replace("t.me/", "")
+            
+            # Check if private invite link (joinchat/ or starts with +)
+            if link.startswith("joinchat/") or link.startswith("+"):
+                invite_hash = link.replace("joinchat/", "").replace("+", "").strip()
+                result = await self.client(ImportChatInviteRequest(invite_hash))
+                # Resolve details from response
+                from telethon.tl.types import Updates, UpdateNewMessage
+                chat = None
+                if hasattr(result, "chats") and result.chats:
+                    chat = result.chats[0]
+                elif hasattr(result, "chats"):
+                    # Might be wrapped inside Updates
+                    pass
+                
+                chat_id = getattr(chat, "id", 0)
+                title = getattr(chat, "title", "Private Group")
+                username = getattr(chat, "username", "") or ""
+                return {
+                    "status": "success",
+                    "chat_id": chat_id,
+                    "title": title,
+                    "username": username,
+                    "type": "group"
+                }
+            else:
+                # Public channel or group handle/username (with or without @)
+                username = link.replace("@", "").strip()
+                result = await self.client(JoinChannelRequest(username))
+                chat = result.chats[0] if result.chats else None
+                chat_id = getattr(chat, "id", 0)
+                title = getattr(chat, "title", username)
+                chat_type = "channel" if getattr(chat, "broadcast", False) else "group"
+                return {
+                    "status": "success",
+                    "chat_id": chat_id,
+                    "title": title,
+                    "username": username,
+                    "type": chat_type
+                }
+        except Exception as e:
+            db.log_event("ERROR", f"Failed to join group/channel {link}: {str(e)}")
+            return {"status": "error", "message": str(e)}
+
+    async def test_proxy_connection(self, proxy_id: int):
+        """Validates a SOCKS5/HTTP proxy by measuring handshake latency."""
+        # Retrieve proxy credentials
+        proxies = db.get_all_proxies()
+        target = None
+        for p in proxies:
+            if p["id"] == proxy_id:
+                target = p
+                break
+        if not target:
+            return {"status": "error", "message": "Proxy not found."}
+        
+        import socket
+        import time as time_module
+        t0 = time_module.time()
+        try:
+            # Low level test by opening socket connection to address and port
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(4.0)
+            sock.connect((target["addr"], target["port"]))
+            sock.close()
+            latency = int((time_module.time() - t0) * 1000)
+            db.update_proxy_test_result(proxy_id, "active", latency)
+            return {"status": "active", "latency_ms": latency}
+        except Exception as e:
+            db.update_proxy_test_result(proxy_id, "error", -1)
             return {"status": "error", "message": str(e)}
 
     async def start(self):

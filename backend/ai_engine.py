@@ -28,8 +28,9 @@ GEMINI_REST_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 _key_lock = threading.Lock()
 
 def get_all_keys():
-    """Return all API keys from environment in order."""
+    """Return all API keys from environment and database in order."""
     keys = []
+    # 1. Environment keys
     primary = os.getenv("GEMINI_API_KEY")
     if primary:
         keys.append(primary.strip())
@@ -37,7 +38,30 @@ def get_all_keys():
         key = os.getenv(f"GEMINI_API_KEY_{idx}")
         if key:
             keys.append(key.strip())
+            
+    # 2. Database keys
+    db_keys_str = db.get_setting("gemini_keys", "[]")
+    if db_keys_str:
+        try:
+            parsed = json.loads(db_keys_str)
+            if isinstance(parsed, list):
+                for item in parsed:
+                    if isinstance(item, str):
+                        k = item.strip()
+                        if k and k not in keys:
+                            keys.append(k)
+                    elif isinstance(item, dict) and "key" in item:
+                        k = item["key"].strip()
+                        if k and k not in keys:
+                            keys.append(k)
+        except Exception:
+            # Fallback for comma-separated or newline-separated formats
+            for line in db_keys_str.replace(",", "\n").split("\n"):
+                k = line.strip()
+                if k and k not in keys:
+                    keys.append(k)
     return keys
+
 
 def _key_prefix(key):
     """Return a short, safe identifier for a key."""
@@ -88,17 +112,30 @@ def _classify_error(err_str):
 # CORE RETRY GENERATOR  (pure REST — no grpc/DLL dependency)
 # ─────────────────────────────────────────────────────────────
 
-def _gemini_rest_call(api_key, prompt, model_name="gemini-2.5-flash-lite",
+def _gemini_rest_call(api_key, prompt, model_name=None,
                       response_mime_type=None, timeout=15.0):
     """
     Direct REST call to Gemini generateContent endpoint.
     Returns the response text string on success.
     Raises RuntimeError with HTTP status / error body on failure.
     """
+    if model_name is None or model_name == "gemini-2.5-flash-lite":
+        model_name = db.get_setting("gemini_model", "gemini-2.5-flash-lite")
+        
+    try:
+        temp = float(db.get_setting("gemini_temperature", "0.85"))
+    except Exception:
+        temp = 0.85
+        
+    try:
+        max_tokens = int(db.get_setting("gemini_max_tokens", "1500"))
+    except Exception:
+        max_tokens = 1500
+
     url = f"{GEMINI_REST_BASE}/{model_name}:generateContent?key={api_key}"
     body = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.85, "maxOutputTokens": 1500}
+        "generationConfig": {"temperature": temp, "maxOutputTokens": max_tokens}
     }
     if response_mime_type:
         body["generationConfig"]["responseMimeType"] = response_mime_type
@@ -127,13 +164,15 @@ def _gemini_rest_call(api_key, prompt, model_name="gemini-2.5-flash-lite",
         raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:200]}")
 
 
-def generate_content_with_retry(prompt, model_name="gemini-2.5-flash-lite",
+def generate_content_with_retry(prompt, model_name=None,
                                   response_mime_type=None, files=None, timeout=15.0):
     """
     Tries each key in the rotation pool sequentially via pure REST.
     Falls back to rule-based responses ONLY if ALL keys fail.
     Returns response_text on success, raises Exception on total failure.
     """
+    if model_name is None or model_name == "gemini-2.5-flash-lite":
+        model_name = db.get_setting("gemini_model", "gemini-2.5-flash-lite")
     candidates = get_healthy_keys()
     if not candidates:
         raise RuntimeError("No healthy Gemini API keys available in the pool.")
@@ -737,15 +776,34 @@ def generate_analysis_and_response(message_text, sender_info, chat_history, stat
     owner_style_profile    = db.get_setting("owner_style_profile", "")
 
     # Short casual status for the Gemini prompt
-    casual_status_map_en = {
-        "sleeping": "asleep rn, will be back in the morning",
-        "busy": "locked in a deal rn",
-        "focus": "heads down in deep work rn",
-        "travel": "traveling rn with limited signal",
-        "online": "occupied in another chat rn",
-        "vacation": "on vacation rn",
-    }
-    status_context = casual_status_map_en.get(status_mode.lower(), "away rn")
+    status_lower = status_mode.lower()
+    custom_desc = db.get_setting(f"status_desc_{status_lower}")
+    if custom_desc:
+        status_context = custom_desc
+    else:
+        casual_status_map_en = {
+            "sleeping": "asleep rn, will be back in the morning",
+            "busy": "locked in a deal rn",
+            "focus": "heads down in deep work rn",
+            "travel": "traveling rn with limited signal",
+            "online": "occupied in another chat rn",
+            "vacation": "on vacation rn",
+        }
+        status_context = casual_status_map_en.get(status_lower, "away rn")
+
+    custom_prompt_directive = db.get_setting(f"status_prompt_{status_lower}")
+    if not custom_prompt_directive:
+        mood_defaults = {
+            "sleeping": "Reply by letting them know CatVos is asleep and you will forward their message. Be very brief and polite.",
+            "busy": "Let them know CatVos is busy doing a deal. Ask if they can wait, or drop deal terms if it is an escrow coordination.",
+            "focus": "Let them know CatVos is in deep work/coding. Tell them to drop details and he will review later.",
+            "travel": "Let them know CatVos is traveling and signal is weak. Tell them he will reply when he hits a city.",
+            "online": "Tell them CatVos is occupied with another chat right now but will get to them soon.",
+            "vacation": "Tell them CatVos is on vacation and will be back in a few days.",
+        }
+        custom_prompt_directive = mood_defaults.get(status_lower, "Let them know CatVos is away right now.")
+
+    sender_custom_prompt = sender_info.get("custom_prompt", "") if sender_info else ""
 
     # Dynamic introduction rules
     if has_introduced and is_followup:
@@ -792,10 +850,24 @@ CRITICAL SENSEI INSTRUCTIONS:
    - "update_setting": updates setting. Key: setting_key, Value: value.
 """
     else:
-        prompt_intro = f"""You are Coet. CatVos is your close friend — you handle his Telegram DMs when he's not around.
+        swarm_directive = ""
+        if db.get_setting("ai_swarm_mode", "0") == "1":
+            msg_lower = message_text.lower()
+            if any(x in msg_lower for x in ["deal", "price", "stock", "order", "buy", "sell", "upi", "pay", "cost", "how much", "rate"]):
+                swarm_prompt = db.get_setting("swarm_sales_prompt", "You are the Sales Agent. Close the deal.")
+                swarm_directive = f"\nSWARM ROLE (SALES AGENT): {swarm_prompt}\n"
+            elif any(x in msg_lower for x in ["dispute", "issue", "delay", "refund", "problem", "cheat", "scam", "bad", "wrong", "delay"]):
+                swarm_prompt = db.get_setting("swarm_dispute_prompt", "You are the Dispute Agent. Help resolve the transaction issue peacefully.")
+                swarm_directive = f"\nSWARM ROLE (DISPUTE AGENT): {swarm_prompt}\n"
+            else:
+                swarm_prompt = db.get_setting("swarm_support_prompt", "You are the Support Agent. Resolve the client's query.")
+                swarm_directive = f"\nSWARM ROLE (SUPPORT AGENT): {swarm_prompt}\n"
 
+        prompt_intro = f"""You are Coet. CatVos is your close friend — you handle his Telegram DMs when he's not around.
+{swarm_directive}
 You text like a real person. Casual. Natural. Read what they said and actually respond to it.
 CatVos is currently: {status_context}
+CURRENT STATUS DIRECTIVE: {custom_prompt_directive}
 """
 
     prompt = f"""{prompt_intro}
@@ -854,6 +926,8 @@ BUSINESS RULES:
 
 KNOWLEDGE BASE:
 {knowledge_base if knowledge_base else '(none set)'}
+
+{f'SPECIAL DIRECTIVE FOR THIS SENDER ({sender_info.get("first_name", "User") if sender_info else "User"}):\n{sender_custom_prompt}\n' if sender_custom_prompt else ''}
 
 CONVERSATION:
 {history_str if history_str else '(first message)'}
