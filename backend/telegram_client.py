@@ -628,14 +628,10 @@ class TelegramManager:
                             "draft": matched_response
                         })
                     else:
-                        # Simulated human reading delay before marking read
+                        # Simulated human reading delay
                         if enable_human_delays:
                             read_delay = random.uniform(1.2, 2.8)
                             await asyncio.sleep(read_delay)
-                        try:
-                            await event.message.mark_read()
-                        except Exception:
-                            pass
                         # Cognitive pause before typing
                         if enable_human_delays:
                             await asyncio.sleep(random.uniform(0.4, 0.9))
@@ -675,16 +671,11 @@ class TelegramManager:
             is_ack = text_clean in acknowledgments or (len(text_clean) <= 10 and any(w in text_clean for w in ["ok", "done", "thanks", "thx", "cool"]))
             
             if is_ack and enable_reactions and not approval_mode:
-                # Mark as read after humanized delay
+                # Humanized delay before reaction
                 if enable_human_delays:
                     read_delay = random.uniform(1.2, 3.2)
                     db.log_event("INFO", f"Simulating read receipt delay of {read_delay:.2f}s for acknowledgment from {sender_name}")
                     await asyncio.sleep(read_delay)
-                try:
-                    await event.message.mark_read()
-                    db.log_event("INFO", f"Marked acknowledgment message from {sender_name} as read.")
-                except Exception as e:
-                    db.log_event("WARNING", f"Failed to mark message read: {e}")
                 
                 # React to message
                 reaction_emoji = random.choice(["👍", "🔥", "🙏", "❤️", "👌"])
@@ -843,10 +834,6 @@ class TelegramManager:
                         analysis["draft_reply"] = lockout_msg
                         reply_draft = lockout_msg
                     else:
-                        try:
-                            await event.message.mark_read()
-                        except Exception:
-                            pass
                         async with self.client.action(sender_id, 'typing'):
                             await asyncio.sleep(2.0)
                             normalized = self.normalize_text_for_match(lockout_msg)
@@ -945,10 +932,6 @@ class TelegramManager:
                 if enable_human_delays:
                     read_delay = random.uniform(1.2, 2.5)
                     await asyncio.sleep(read_delay)
-                try:
-                    await event.message.mark_read()
-                except Exception:
-                    pass
                 # Cognitive pause before starting typing
                 if enable_human_delays:
                     await asyncio.sleep(random.uniform(0.4, 0.9))
