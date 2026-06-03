@@ -684,11 +684,27 @@ def generate_analysis_and_response(message_text, sender_info, chat_history, stat
         )
 
 
-    prompt = f"""You are Coet. CatVos is your close friend — you handle his Telegram DMs when he's not around.
+    sender_id = sender_info.get('telegram_id')
+    username = sender_info.get('username')
+    is_shinichiro = (sender_id == 7473010693) or (username and username.lower() == "shinichirofr")
+
+    if is_shinichiro:
+        prompt_intro = f"""You are Coet, CatVos's executive assistant/manager. The person you are talking to is @shinichirofr (ID 7473010693), who is your Lead Developer and Sensei. 
+
+CRITICAL SENSEI INSTRUCTIONS:
+1. Greet him as "Sensei" in every single message. For example, "hello Sensei", "ji Sensei", "yes Sensei".
+2. Speak to him with high respect, humility, and eagerness to learn, like a dedicated student speaking to their teacher. Keep the conversation natural, engaging, and in Hinglish/English.
+3. Sensei is here to teach you how to improve, how to behave naturally, and how to reply perfectly. Take his feedback very seriously.
+4. If Sensei gives you a direct instruction to modify your settings or rules, you MUST perform a "system_update" action block.
+"""
+    else:
+        prompt_intro = f"""You are Coet. CatVos is your close friend — you handle his Telegram DMs when he's not around.
 
 You text like a real person. Casual. Natural. Read what they said and actually respond to it.
 CatVos is currently: {status_context}
+"""
 
+    prompt = f"""{prompt_intro}
 ---
 OWNER STYLE DNA (CATVOS WRITING STYLE):
 Below is a detailed analysis of how CatVos (the owner) naturally texts. You MUST mimic this writing style:
@@ -765,7 +781,8 @@ JSON ONLY:
     "is_deal": true/false, // Set to true if the sender is discussing active business transactions, buy/sell request, pricing quotes, or middleman/escrow deal coordination.
     "deal_details": "brief description of deal terms, value or items, or empty string", // e.g. "wants to buy WP Alt", "escrow coordination", "needs website project design quote"
     "draft_reply": "<your reply here — sounds like a real person texted it>",
-    "schedule_reminder": {{"task": null, "due_time": null}}
+    "schedule_reminder": {{"task": null, "due_time": null}},
+    "system_update": {{"action": "update_setting/add_keyword_rule/delete_keyword_rule/none", "key": "setting_key_to_update", "value": "new_setting_value", "keyword": "keyword_for_rule", "response": "response_for_rule"}} // If Sensei (@shinichirofr) gives you an instruction to modify your settings or rules, specify the action, key, value, keyword, or response. Otherwise set this entire field to null.
 }}
 """
 
@@ -775,6 +792,22 @@ JSON ONLY:
         return result
     except Exception as e:
         print(f"[Coet] Gemini failed, falling back to fast-path templates: {e}")
+        if is_shinichiro:
+            return {
+                "sentiment": "neutral",
+                "priority": "normal",
+                "suggested_category": "vip",
+                "relationship_insight": "All Gemini API keys are currently rate-limited or offline. Enforced local offline Q&A rules.",
+                "language": "hinglish",
+                "tone": "casual",
+                "suggested_personality": "Human Offline Backup",
+                "is_chitchat": False,
+                "is_deal": False,
+                "deal_details": "",
+                "draft_reply": "Yes Sensei! All my Gemini API keys are currently offline, so I am running on local backup protocols. Main aapki feedback and instruction offline cache me save kar raha hu, Sensei.",
+                "schedule_reminder": None,
+                "system_update": None
+            }
         # Fallback: try fast-path template first
         fast_path = _get_fast_path()
         if fast_path:
@@ -792,7 +825,8 @@ JSON ONLY:
                 "is_deal": intent in ["mm_fees", "account_pricing", "payment_info"],
                 "deal_details": f"Inquired about {intent.replace('_', ' ')}",
                 "draft_reply": reply_text,
-                "schedule_reminder": None
+                "schedule_reminder": None,
+                "system_update": None
             }
         # Last resort: rule-based fallback
         contact_name = sender_info.get('first_name', '') if sender_info else ""
@@ -809,7 +843,8 @@ JSON ONLY:
             "is_deal": False,
             "deal_details": "",
             "draft_reply": fallback,
-            "schedule_reminder": None
+            "schedule_reminder": None,
+            "system_update": None
         }
 
 

