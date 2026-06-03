@@ -997,7 +997,7 @@ function App() {
       { id: 'status_focus', label: '🎯 Set Status: Focus', type: 'action', desc: 'Set active status preset' },
       { id: 'status_busy', label: '🔴 Set Status: Busy', type: 'action', desc: 'Set active status preset' },
       { id: 'status_sleeping', label: '🌙 Set Status: Sleeping', type: 'action', desc: 'Set active status preset' },
-      { id: 'diagnostics', label: '🛡️ Run API Key Diagnostics', type: 'action', desc: 'Pings all 5 Gemini keys to check health status' },
+      { id: 'diagnostics', label: '🛡️ Run API Key Diagnostics', type: 'action', desc: `Pings all ${keyPool.length || 5} Gemini keys to check health status` },
       { id: 'clear_logs', label: '🗑️ Clear Event Logs', type: 'action', desc: 'Flush all events from SQLite database' },
       { id: 'test_chime', label: '🔊 Test Audio Chime', type: 'action', desc: 'Play synthesized success notification' },
     ];

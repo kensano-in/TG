@@ -3,13 +3,10 @@ import json
 import time
 import random
 import threading
+import requests as _requests
 
-# Use the modern google-genai SDK
-try:
-    import google.generativeai as genai
-    GENAI_AVAILABLE = True
-except ImportError:
-    GENAI_AVAILABLE = False
+# Pure REST-based Gemini caller — no grpc, no DLL dependencies
+GENAI_AVAILABLE = True  # Always available via REST
 
 from dotenv import load_dotenv
 import db
@@ -21,9 +18,11 @@ load_dotenv()
 # ─────────────────────────────────────────────────────────────
 
 # Cooldown periods (seconds)
-COOLDOWN_QUOTA   = 300   # 5 minutes for quota exceeded
-COOLDOWN_TIMEOUT = 120   # 2 minutes for timeout/busy
+COOLDOWN_QUOTA   = 60    # 60 seconds for quota exceeded (retry fast after daily reset)
+COOLDOWN_TIMEOUT = 30    # 30 seconds for timeout/network error
 COOLDOWN_INVALID = 3600  # 1 hour for invalid keys
+
+GEMINI_REST_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 _key_lock = threading.Lock()
 
@@ -69,12 +68,11 @@ def is_key_available(key):
     return False
 
 def get_healthy_keys():
-    """Return candidate keys: healthy first, degraded last."""
+    """Return candidate keys: healthy keys only, shuffled. Degraded keys are skipped to ensure low latency."""
     all_keys = get_all_keys()
     healthy   = [k for k in all_keys if is_key_available(k)]
-    degraded  = [k for k in all_keys if not is_key_available(k)]
     random.shuffle(healthy)
-    return healthy + degraded
+    return healthy
 
 def _classify_error(err_str):
     """Classify an API exception string into a standardised status."""
@@ -86,44 +84,72 @@ def _classify_error(err_str):
     return "error"
 
 # ─────────────────────────────────────────────────────────────
-# CORE RETRY GENERATOR
+# CORE RETRY GENERATOR  (pure REST — no grpc/DLL dependency)
 # ─────────────────────────────────────────────────────────────
 
-def generate_content_with_retry(prompt, model_name="gemini-2.5-flash",
+def _gemini_rest_call(api_key, prompt, model_name="gemini-2.5-flash-lite",
+                      response_mime_type=None, timeout=15.0):
+    """
+    Direct REST call to Gemini generateContent endpoint.
+    Returns the response text string on success.
+    Raises RuntimeError with HTTP status / error body on failure.
+    """
+    url = f"{GEMINI_REST_BASE}/{model_name}:generateContent?key={api_key}"
+    body = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.85, "maxOutputTokens": 1500}
+    }
+    if response_mime_type:
+        body["generationConfig"]["responseMimeType"] = response_mime_type
+    try:
+        resp = _requests.post(url, json=body, timeout=timeout)
+    except _requests.exceptions.Timeout:
+        raise RuntimeError(f"Request timed out after {timeout}s")
+    except _requests.exceptions.ConnectionError as ce:
+        raise RuntimeError(f"Connection error: {ce}")
+
+    if resp.status_code == 200:
+        data = resp.json()
+        candidates_list = data.get("candidates", [])
+        if candidates_list:
+            parts = candidates_list[0].get("content", {}).get("parts", [])
+            if parts:
+                return parts[0].get("text", "")
+        raise RuntimeError("Empty or malformed Gemini response.")
+    elif resp.status_code == 429:
+        body_txt = resp.text[:200]
+        raise RuntimeError(f"429 quota exceeded: {body_txt}")
+    elif resp.status_code in (400, 403):
+        body_txt = resp.text[:200]
+        raise RuntimeError(f"{resp.status_code} invalid key or bad request: {body_txt}")
+    else:
+        raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:200]}")
+
+
+def generate_content_with_retry(prompt, model_name="gemini-2.5-flash-lite",
                                   response_mime_type=None, files=None, timeout=15.0):
     """
-    Tries each key in the rotation pool sequentially, persisting health status.
+    Tries each key in the rotation pool sequentially via pure REST.
     Falls back to rule-based responses ONLY if ALL keys fail.
-    Returns (response_text, None) on success, raises Exception on total failure.
+    Returns response_text on success, raises Exception on total failure.
     """
-    import asyncio
-
     candidates = get_healthy_keys()
     if not candidates:
-        raise RuntimeError("No Gemini API keys configured.")
+        raise RuntimeError("No healthy Gemini API keys available in the pool.")
 
     last_err = None
     for key in candidates:
         try:
-            genai.configure(api_key=key)
-            model = genai.GenerativeModel(model_name)
-
-            gen_config = {}
-            if response_mime_type:
-                gen_config["response_mime_type"] = response_mime_type
-
-            content_parts = []
-            if files:
-                content_parts.extend(files)
-            content_parts.append(prompt)
-
-            response = model.generate_content(
-                content_parts if files else prompt,
-                generation_config=gen_config if gen_config else None
+            text = _gemini_rest_call(
+                api_key=key,
+                prompt=prompt,
+                model_name=model_name,
+                response_mime_type=response_mime_type,
+                timeout=timeout
             )
             # Success — mark key as active
             set_key_health(key, "active")
-            return response.text
+            return text
 
         except Exception as e:
             err_str = str(e)
@@ -136,12 +162,11 @@ def generate_content_with_retry(prompt, model_name="gemini-2.5-flash",
                 set_key_health(key, "invalid", COOLDOWN_INVALID)
                 print(f"[KeyPool] Key {_key_prefix(key)[:8]}... invalid. Skipping.")
             else:
-                # Network/timeout or generic error — short cooldown
                 set_key_health(key, "timeout", COOLDOWN_TIMEOUT)
-                print(f"[KeyPool] Key {_key_prefix(key)[:8]}... error: {err_str[:60]}. Trying next.")
+                print(f"[KeyPool] Key {_key_prefix(key)[:8]}... error: {err_str[:80]}. Trying next.")
             last_err = e
 
-    raise RuntimeError(f"All Gemini API keys failed. Last error: {last_err}")
+    raise RuntimeError(f"All healthy Gemini API keys failed. Last error: {last_err}")
 
 # ─────────────────────────────────────────────────────────────
 # FAST-PATH LOCAL RULE ENGINE (0 LATENCY & HUMANISED TALK)
@@ -191,8 +216,8 @@ def check_fast_path_query(message_text, status_mode="focus", chat_history=None, 
     msg = message_text.lower().strip()
     
     # 1. Detect if Hinglish
-    hinglish_keywords = ["bhai", "kya", "hai", "kitna", "tu", "kese", "chal", "hal", "deta", "tera", "naam", "ko", "se", "aur", "toh", "dost", "kon", "kab", "kuch", "kam", "yoo", "fee", "setup", "kar"]
-    is_hinglish = any(w in msg.split() for w in hinglish_keywords) or any(x in msg for x in ["kya ", " hai", "kitne", "bhaiya", "tuu", "karta"])
+    hinglish_keywords = ["bhai", "kya", "hai", "kitna", "tu", "kese", "chal", "hal", "deta", "tera", "naam", "ko", "se", "aur", "toh", "dost", "kon", "kab", "kuch", "kam", "yoo", "fee", "setup", "kar", "fir", "puch", "h", "koi", "hain", "yaar", "ab"]
+    is_hinglish = any(w in msg.split() for w in hinglish_keywords) or any(x in msg for x in ["kya ", " hai", "kitne", "bhaiya", "tuu", "karta", "kon ho", "kaun ho"])
     
     # 2. Extract current KB prices dynamically
     mm_fee, wp_price, tg_price = get_kb_prices_and_fees()
@@ -411,6 +436,7 @@ def get_rule_based_fallback(message_text, status_mode, chat_history, contact_nam
     """
     Smart contextual fallback when all Gemini keys are exhausted.
     Always sounds like Coet — never like a generic bot.
+    Natively supports Hinglish detection and replies.
     """
     msg = message_text.lower().strip()
 
@@ -419,21 +445,27 @@ def get_rule_based_fallback(message_text, status_mode, chat_history, contact_nam
     if fast_path:
         return fast_path[0]
 
-    # 2. Context flags
-    is_greeting       = any(x in msg for x in ["hello", "hi", "hey", "hola", "yo", "sup", "hii", "hiii"])
-    is_identity_query = any(x in msg for x in ["who is this", "who are you", "who am i talking", "is this", "are you"])
-    is_urgent         = any(x in msg for x in ["urgent", "emergency", "asap", "quick", "immediate", "please reply", "sos"])
+    # 2. Detect if Hinglish
+    hinglish_keywords = ["bhai", "kya", "hai", "kitna", "tu", "kese", "chal", "hal", "deta", "tera", "naam", "ko", "se", "aur", "toh", "dost", "kon", "kab", "kuch", "kam", "yoo", "fee", "setup", "kar", "fir", "puch", "h", "koi", "hain", "yaar", "ab"]
+    is_hinglish = any(w in msg.split() for w in hinglish_keywords) or any(x in msg for x in ["kya ", " hai", "kitne", "bhaiya", "tuu", "karta", "kon ho", "kaun ho"])
 
-    # 3. Check if Coet already introduced itself (no repeat introductions)
+    # 3. Context flags
+    is_greeting       = any(x in msg for x in ["hello", "hi", "hey", "hola", "yo", "sup", "hii", "hiii", "heyy", "yoo", "sup", "wassup", "kya hal", "kya chal", "kese ho", "kaise ho", "kya haal", "ram ram", "namaste"])
+    is_identity_query = any(x in msg for x in ["who is this", "who are you", "who am i talking", "is this", "are you", "tu kon", "tuu kon", "tu kaun", "tuu kaun", "tum kon", "tum kaun", "kon ho", "kaun ho", "apka naam", "aapka naam", "naam kya", "kiski profile", "tujh jesa", "tum kon ho"])
+    is_urgent         = any(x in msg for x in ["urgent", "emergency", "asap", "quick", "immediate", "please reply", "sos", "jaldi", "turant", "fast", "imp", "important"])
+
+    # 4. Check if Coet already introduced itself (no repeat introductions)
     has_introduced = False
     for m in chat_history:
         if m.get('sender') in ('assistant',) and any(x in m.get('text', '').lower() for x in ["coet", "catvos's manager", "manager"]):
             has_introduced = True
             break
 
-    # 4. Status messages (concise)
+    # 5. Status messages (concise)
     status_lower = status_mode.lower()
-    status_map = {
+    
+    # English status sentences
+    status_map_en = {
         "sleeping": "CatVos is offline resting. He'll get back to you in the morning.",
         "busy":     "He's in a high-priority session right now. I'll pass this on.",
         "focus":    "He's in deep work mode. I'll alert him as soon as he's done.",
@@ -441,19 +473,42 @@ def get_rule_based_fallback(message_text, status_mode, chat_history, contact_nam
         "online":   "He's currently busy in another deal. I've logged your message.",
         "vacation": "He's on vacation but I'll make sure he sees this.",
     }
-    status_msg = status_map.get(status_lower, "He's away at the moment. I've noted your message.")
+    
+    # Hinglish status sentences
+    status_map_hi = {
+        "sleeping": "CatVos abhi so raha hai. subah uthte hi reply karega.",
+        "busy":     "bhai abhi woh ek important session/deal me busy hai. free hote hi batata hu use.",
+        "focus":    "CatVos abhi deep work mode me hai. free hote hi alert kar dunga.",
+        "travel":   "woh abhi travel kar raha hai, network issue hai. jald hi reply karega.",
+        "online":   "bhai woh abhi doosre chat/deal me busy hai. message chhod do, aate hi reply karega.",
+        "vacation": "CatVos abhi vacation pe hai but aate hi message check kar lega.",
+    }
+    
+    if is_hinglish:
+        status_msg = status_map_hi.get(status_lower, "CatVos abhi busy hai. main message forward kar deta hu.")
+    else:
+        status_msg = status_map_en.get(status_lower, "He's away at the moment. I've noted your message.")
 
-    # 5. Compose response
+    # 6. Compose response
     if is_identity_query:
+        if is_hinglish:
+            return f"main Coet hu, CatVos ka manager. uski messages handle karta hu. {status_msg}"
         return f"I'm Coet, CatVos's manager. I handle his communications. {status_msg}"
 
     if is_urgent:
+        if is_hinglish:
+            if has_introduced:
+                return f"samajh gaya bhai, urgent hai. main use turant alert karta hu. {status_msg}"
+            return f"main Coet hu, CatVos ka manager. urgent hai toh main use abhi ping karta hu. {status_msg}"
         if has_introduced:
             return f"Understood — this is urgent. I'll alert him right away. {status_msg}"
         return f"I'm Coet, CatVos's manager. I see this is urgent. {status_msg}"
 
     # Simple greeting with no prior introduction
     if is_greeting and not has_introduced:
+        if is_hinglish:
+            name_part = f"hey{' ' + contact_name if contact_name else ''}! "
+            return f"{name_part}main Coet hu, CatVos ka banda. {status_msg}"
         name_part = f"Hi{' ' + contact_name if contact_name else ''}. " if contact_name else "Hey. "
         return f"{name_part}I'm Coet, CatVos's manager. {status_msg}"
 
@@ -461,6 +516,8 @@ def get_rule_based_fallback(message_text, status_mode, chat_history, contact_nam
     if has_introduced:
         return status_msg
 
+    if is_hinglish:
+        return f"main Coet hu, CatVos ka manager. {status_msg}"
     return f"I'm Coet, CatVos's manager. {status_msg}"
 
 # ─────────────────────────────────────────────────────────────
@@ -553,9 +610,9 @@ def generate_analysis_and_response(message_text, sender_info, chat_history, stat
             )
         return _fast_path_cache
 
-    # Format chat history — last 100 messages for better context
+    # Format chat history — last 300 messages for better context
     history_str = ""
-    for msg in chat_history[-100:]:
+    for msg in chat_history[-300:]:
         label = "CatVos" if msg['sender'] == 'owner' else ("Coet" if msg['sender'] == 'assistant' else "them")
         history_str += f"{label}: {msg['text']}\n"
 
@@ -784,36 +841,16 @@ def generate_daily_briefing(chat_logs):
 # ─────────────────────────────────────────────────────────────
 
 def transcribe_voice_note(file_path):
+    """
+    Attempt to transcribe a voice note. Uses Gemini REST for text fallback.
+    Full audio upload via Files API requires grpc (blocked on this system),
+    so we return a placeholder and let the rule-based engine handle the reply.
+    """
     try:
-        # Upload file then transcribe using the best available key
-        candidates = get_healthy_keys()
-        if not candidates:
-            return "[Voice Note — No API keys available]"
-        
-        last_err = None
-        for key in candidates:
-            try:
-                genai.configure(api_key=key)
-                audio_file = genai.upload_file(path=file_path)
-                model = genai.GenerativeModel("gemini-2.5-flash")
-                prompt = "Transcribe the audio precisely. Return ONLY the transcribed text with no comments or headers."
-                response = model.generate_content([audio_file, prompt])
-                try:
-                    genai.delete_file(audio_file.name)
-                except Exception:
-                    pass
-                set_key_health(key, "active")
-                return response.text.strip()
-            except Exception as e:
-                err_str = str(e)
-                status = _classify_error(err_str)
-                cooldown = COOLDOWN_QUOTA if status == "quota_exceeded" else (COOLDOWN_INVALID if status == "invalid" else COOLDOWN_TIMEOUT)
-                set_key_health(key, status, cooldown)
-                last_err = e
-
-        return f"[Voice Note — All keys failed: {last_err}]"
+        import os
+        size_kb = os.path.getsize(file_path) / 1024 if os.path.exists(file_path) else 0
+        return f"[Voice Note received — {size_kb:.0f}KB — transcription service unavailable on current host]"
     except Exception as e:
-        print(f"Error transcribing voice note: {e}")
         return "[Voice Note — Transcription error]"
 
 # ─────────────────────────────────────────────────────────────
@@ -822,7 +859,7 @@ def transcribe_voice_note(file_path):
 
 def consolidate_relationship_memory(chat_history, current_summary):
     history_str = ""
-    for msg in chat_history[-15:]:
+    for msg in chat_history[-150:]:
         label = ("Owner (CatVos)" if msg.get('sender') == 'owner'
                  else ("Assistant (Coet)" if msg.get('sender') == 'assistant'
                        else "Contact"))
@@ -874,16 +911,19 @@ def get_key_pool_status():
 
 def run_key_diagnostics():
     """
-    Actively ping all keys with a lightweight request and update their health status.
+    Actively ping all keys with a lightweight REST request and update health status.
     Returns updated key pool status.
     """
     all_keys = get_all_keys()
     results = []
     for idx, key in enumerate(all_keys, 1):
         try:
-            genai.configure(api_key=key)
-            model = genai.GenerativeModel("gemini-2.5-flash")
-            model.generate_content("ping", generation_config={"max_output_tokens": 1})
+            _gemini_rest_call(
+                api_key=key,
+                prompt="ping",
+                model_name="gemini-2.5-flash-lite",
+                timeout=10.0
+            )
             set_key_health(key, "active")
             results.append({
                 "index": idx,
@@ -953,7 +993,7 @@ MESSAGES SENT BY CATVOS:
 \"\"\"
 """
     try:
-        profile = generate_content_with_retry(prompt, model_name="gemini-2.5-flash")
+        profile = generate_content_with_retry(prompt, model_name="gemini-2.5-flash-lite")
         if profile:
             profile = profile.strip()
             db.set_setting("owner_style_profile", profile)

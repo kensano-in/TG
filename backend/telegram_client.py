@@ -26,28 +26,46 @@ else:
 
 class TelegramManager:
     def __init__(self):
-        # Load persisted session strings from database (survives Render redeploys)
-        userbot_session_str = db.get_setting("telegram_session_string", "")
-        bot_session_str = db.get_setting("telegram_bot_session_string", "")
-
-        self.client = TelegramClient(
-            StringSession(userbot_session_str), API_ID, API_HASH
-        )
-        self.bot_client = TelegramClient(
-            StringSession(bot_session_str), API_ID, API_HASH
-        )
+        self.client = None
+        self.bot_client = None
         # Keep file paths for backward compat (not used for session storage anymore)
         self.session_path = os.path.join(os.path.dirname(__file__), "verlyn_assistant")
         self.bot_session_path = os.path.join(os.path.dirname(__file__), "verlyn_bot_session")
         self.phone_code_hash = None
         self.phone = PHONE
         self.is_running = False
+        self._bot_handler_registered = False  # Guard: bot handlers registered only once
         self.websocket_clients = set()
         self.assistant_sent_message_ids = set()
+        self.assistant_sent_message_texts = set()
         self.flood_trackers = {}
         self.me_id = None
 
+    def normalize_text_for_match(self, t):
+        if not t:
+            return ""
+        import re
+        # Remove HTML tags
+        t = re.sub(r'<[^>]+>', '', t)
+        # Remove markdown formatting characters
+        t = re.sub(r'[\*_`~]', '', t)
+        # Keep only alphanumeric characters and spaces
+        t = re.sub(r'[^a-zA-Z0-9\s]', '', t)
+        # Normalize multiple spaces, strip, and lowercase
+        return " ".join(t.split()).strip().lower()
+
     async def connect(self):
+        if self.client is None:
+            userbot_session_str = db.get_setting("telegram_session_string", "")
+            self.client = TelegramClient(
+                StringSession(userbot_session_str), API_ID, API_HASH
+            )
+        if self.bot_client is None:
+            bot_session_str = db.get_setting("telegram_bot_session_string", "")
+            self.bot_client = TelegramClient(
+                StringSession(bot_session_str), API_ID, API_HASH
+            )
+
         if not self.client.is_connected():
             await self.client.connect()
             db.log_event("INFO", "Telegram client connected to MTProto servers.")
@@ -164,7 +182,7 @@ class TelegramManager:
         try:
             # Allow DB writes to settle
             await asyncio.sleep(1.0)
-            history = db.get_chat_history(sender_id, limit=15)
+            history = db.get_chat_history(sender_id, limit=150)
             contact = db.get_or_create_contact(sender_id)
             current_summary = contact.get('relationship_summary', '')
             
@@ -295,9 +313,10 @@ class TelegramManager:
             "<i>Select a protocol option below to explore features, specs, and deploy your autopilot assistant.</i>"
         )
         
-        # 3. Premium 10-button grid keyboard layout
+        # 3. Premium 11-button grid keyboard layout
         reply_keyboard = [
             [Button.inline("⚡ Deploy Your Digital Twin", b"pub_setup")],
+            [Button.inline("🛠️ Pro Admin Panel Demo (20+ Sub-pages)", b"pub_admin_demo")],
             [Button.url("🔍 Check Live Demo (@CatVos)", "https://t.me/CatVos")],
             [Button.inline("🧠 Style Mirroring DNA", b"pub_dna_info"), Button.inline("⚙️ Command Directory (300+)", b"pub_features")],
             [Button.inline("🛡️ Escrow & Security", b"pub_security"), Button.inline("👥 Success Vouches", b"pub_vouches")],
@@ -548,6 +567,9 @@ class TelegramManager:
                     )
                     async with self.client.action(sender_id, 'typing'):
                         await asyncio.sleep(2.0)
+                        normalized = self.normalize_text_for_match(warning_msg)
+                        if normalized:
+                            self.assistant_sent_message_texts.add(normalized)
                         msg = await self.client.send_message(sender_id, warning_msg, parse_mode="html")
                         self.assistant_sent_message_ids.add(msg.id)
                     db.add_message(sender_id, 'assistant', warning_msg, sentiment='neutral', priority='normal', language='english', tone='casual')
@@ -597,7 +619,11 @@ class TelegramManager:
                                 delay_min, delay_max = 1.2, 4.0
                             import random
                             typing_delay = random.uniform(delay_min, delay_max)
-                            await asyncio.sleep(typing_delay)
+                            if typing_delay > 0:
+                                await asyncio.sleep(typing_delay)
+                            normalized = self.normalize_text_for_match(matched_response)
+                            if normalized:
+                                self.assistant_sent_message_texts.add(normalized)
                             msg = await self.client.send_message(sender_id, matched_response)
                             self.assistant_sent_message_ids.add(msg.id)
                             db.add_message(sender_id, 'assistant', matched_response, sentiment='neutral', priority=priority_val, language='hinglish', tone='casual')
@@ -625,7 +651,7 @@ class TelegramManager:
                 return
 
             # Get full chat history to feed Gemini
-            history = db.get_chat_history(sender_id, limit=150)
+            history = db.get_chat_history(sender_id, limit=350)
             
             # Check if Coet has already introduced itself (to avoid repetition)
             has_introduced = any(
@@ -648,13 +674,18 @@ class TelegramManager:
                         pass
                     break
             
-            # Start typing indicator immediately and execute analysis and drafting inside it
-            async with self.client.action(sender_id, 'typing'):
-                start_time = time.time()
-                
+            # Check approval mode before showing typing indicator
+            approval_mode = db.get_setting("approval_mode", "0") == "1"
+            force_draft_vips = db.get_setting("force_draft_vips", "1") == "1"
+            contact_cat = contact.get('category', 'unknown').lower()
+            is_vip = contact_cat in ['vip', 'client', 'business_partner']
+            if force_draft_vips and is_vip:
+                approval_mode = True
+
+            # Helper coroutine to perform the Gemini analysis and drafting
+            async def run_analysis_and_drafting():
                 # Analyze and draft response in a single Gemini call to reduce latency
                 personality = db.get_setting("ai_personality")
-                # Analyze and draft response in a single Gemini call with an 8-second timeout limit to avoid hanging
                 try:
                     analysis = await asyncio.wait_for(
                         asyncio.to_thread(
@@ -686,143 +717,167 @@ class TelegramManager:
                         "draft_reply": fallback_reply,
                         "schedule_reminder": None
                     }
+                return analysis
+
+            start_time = time.time()
+            if approval_mode:
+                # Do analysis silently in background without showing typing indicator
+                analysis = await run_analysis_and_drafting()
+            else:
+                # Show typing indicator while communicating with Gemini
+                async with self.client.action(sender_id, 'typing'):
+                    analysis = await run_analysis_and_drafting()
+
+            # Process the generated analysis
+            sentiment = analysis.get("sentiment", "neutral")
+            priority = analysis.get("priority", "normal")
+            suggested_cat = analysis.get("suggested_category", "unknown")
+            insight = analysis.get("relationship_insight", "")
+            detected_lang = analysis.get("language", "english")
+            detected_tone = analysis.get("tone", "casual")
+            suggested_personality = analysis.get("suggested_personality", "Warm & Helpful")
+            reply_draft = analysis.get("draft_reply", "")
+            schedule_rem = analysis.get("schedule_reminder")
+            
+            # Commit AI scheduled reminder to SQLite and broadcast to UI
+            if schedule_rem and isinstance(schedule_rem, dict) and schedule_rem.get("task"):
+                task_text = schedule_rem.get("task")
+                due_time_str = schedule_rem.get("due_time") or "tomorrow"
                 
-                sentiment = analysis.get("sentiment", "neutral")
-                priority = analysis.get("priority", "normal")
-                suggested_cat = analysis.get("suggested_category", "unknown")
-                insight = analysis.get("relationship_insight", "")
-                detected_lang = analysis.get("language", "english")
-                detected_tone = analysis.get("tone", "casual")
-                suggested_personality = analysis.get("suggested_personality", "Warm & Helpful")
-                reply_draft = analysis.get("draft_reply", "")
-                schedule_rem = analysis.get("schedule_reminder")
+                db.add_reminder(sender_id, task_text, due_time_str)
                 
-                # Commit AI scheduled reminder to SQLite and broadcast to UI
-                if schedule_rem and isinstance(schedule_rem, dict) and schedule_rem.get("task"):
-                    task_text = schedule_rem.get("task")
-                    due_time_str = schedule_rem.get("due_time") or "tomorrow"
-                    
-                    db.add_reminder(sender_id, task_text, due_time_str)
-                    
-                    await self.broadcast_ws("new_reminder", {
-                        "telegram_id": sender_id,
-                        "task": task_text,
-                        "due_time": due_time_str
-                    })
-                
-                # Update messages with tags
-                conn = db.get_db_connection()
-                cursor = conn.cursor()
-                cursor.execute("""
-                    UPDATE messages 
-                    SET sentiment = ?, priority = ?, language = ?, tone = ? 
-                    WHERE id = (
-                        SELECT id FROM messages 
-                        WHERE telegram_id = ? AND sender = 'contact' AND text = ?
-                        ORDER BY id DESC LIMIT 1
-                    )
-                """, (sentiment, priority, detected_lang, detected_tone, sender_id, text))
-                conn.commit()
-                conn.close()
-                
-                # Update contact details if suggested category is different and notes
-                if contact.get('category') == 'unknown' and suggested_cat != 'unknown':
-                    db.update_contact(sender_id, category=suggested_cat)
-                    db.log_event("INFO", f"Automatically categorized {sender_name} as {suggested_cat}.")
-                    
-                if insight:
-                    new_summary = f"{contact.get('relationship_summary', '')}\n- {insight}".strip()
-                    db.update_contact(sender_id, relationship_summary=new_summary)
-                    
-                # Broadcast update
-                await self.broadcast_ws("analysis_update", {
+                await self.broadcast_ws("new_reminder", {
                     "telegram_id": sender_id,
-                    "sentiment": sentiment,
-                    "priority": priority,
-                    "suggested_category": suggested_cat,
-                    "insight": insight,
-                    "language": detected_lang,
-                    "tone": detected_tone,
-                    "suggested_personality": suggested_personality
+                    "task": task_text,
+                    "due_time": due_time_str
+                })
+            
+            # Update messages with tags
+            conn = db.get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE messages 
+                SET sentiment = ?, priority = ?, language = ?, tone = ? 
+                WHERE id = (
+                    SELECT id FROM messages 
+                    WHERE telegram_id = ? AND sender = 'contact' AND text = ?
+                    ORDER BY id DESC LIMIT 1
+                )
+            """, (sentiment, priority, detected_lang, detected_tone, sender_id, text))
+            conn.commit()
+            conn.close()
+            
+            # Update contact details if suggested category is different and notes
+            if contact.get('category') == 'unknown' and suggested_cat != 'unknown':
+                db.update_contact(sender_id, category=suggested_cat)
+                db.log_event("INFO", f"Automatically categorized {sender_name} as {suggested_cat}.")
+                
+            if insight:
+                new_summary = f"{contact.get('relationship_summary', '')}\n- {insight}".strip()
+                db.update_contact(sender_id, relationship_summary=new_summary)
+                
+            # Broadcast update
+            await self.broadcast_ws("analysis_update", {
+                "telegram_id": sender_id,
+                "sentiment": sentiment,
+                "priority": priority,
+                "suggested_category": suggested_cat,
+                "insight": insight,
+                "language": detected_lang,
+                "tone": detected_tone,
+                "suggested_personality": suggested_personality
+            })
+            
+            # Trigger Critical / Urgent notifications to owner via Bot
+            if priority == "critical":
+                db.log_event("WARNING", f"🚨 CRITICAL MESSAGE from {sender_name}: {text}")
+                alert_text = (
+                    f"🚨 <b>Critical Message Alert!</b>\n\n"
+                    f"<b>Contact:</b> {sender_name} (@{username})\n"
+                    f"<b>Category:</b> {contact.get('category', 'unknown').upper()}\n"
+                    f"<b>Message:</b> {text}\n"
+                    f"<b>Sentiment:</b> {sentiment}\n\n"
+                    f"<i>Open your Coet Manager dashboard to reply immediately.</i>"
+                )
+                self.send_bot_notification(alert_text)
+                
+            # Check if category update makes this a draft
+            new_contact_cat = suggested_cat.lower()
+            new_is_vip = new_contact_cat in ['vip', 'client', 'business_partner']
+            if force_draft_vips and new_is_vip:
+                approval_mode = True
+
+            if approval_mode:
+                db.set_setting(f"draft_{sender_id}", reply_draft)
+                db.log_event("INFO", f"Draft saved for {sender_name}: '{reply_draft[:40]}...' (Awaiting Approval)")
+                await self.broadcast_ws("draft_created", {
+                    "telegram_id": sender_id,
+                    "draft": reply_draft
+                })
+            else:
+                # Dynamic typing speed simulation using setting limits with random factor
+                try:
+                    delay_min = float(db.get_setting("reply_delay_min", "1.2"))
+                    delay_max = float(db.get_setting("reply_delay_max", "4.0"))
+                except Exception:
+                    delay_min, delay_max = 1.2, 4.0
+                import random
+                typing_delay = random.uniform(delay_min, delay_max)
+                elapsed = time.time() - start_time
+                if elapsed < typing_delay:
+                    await asyncio.sleep(typing_delay - elapsed)
+                    
+                # Track automated reply text before sending to prevent race condition in outgoing handler
+                normalized = self.normalize_text_for_match(reply_draft)
+                if normalized:
+                    self.assistant_sent_message_texts.add(normalized)
+                msg = await self.client.send_message(sender_id, reply_draft)
+                self.assistant_sent_message_ids.add(msg.id)
+                
+                # Note: We do NOT acknowledge the read to keep the message unread for the admin.
+                
+                # Save outgoing assistant message
+                db.add_message(sender_id, 'assistant', reply_draft, sentiment='neutral', priority='normal', language=detected_lang, tone=detected_tone)
+                db.log_event("INFO", f"Auto-replied to {sender_name}: {reply_draft}")
+                
+                # Broadcast outgoing message to UI
+                await self.broadcast_ws("new_message", {
+                    "telegram_id": sender_id,
+                    "sender": "assistant",
+                    "text": reply_draft
                 })
                 
-                # Trigger Critical / Urgent notifications to owner via Bot
-                if priority == "critical":
-                    db.log_event("WARNING", f"🚨 CRITICAL MESSAGE from {sender_name}: {text}")
-                    alert_text = (
-                        f"🚨 <b>Critical Message Alert!</b>\n\n"
-                        f"<b>Contact:</b> {sender_name} (@{username})\n"
-                        f"<b>Category:</b> {contact.get('category', 'unknown').upper()}\n"
-                        f"<b>Message:</b> {text}\n"
-                        f"<b>Sentiment:</b> {sentiment}\n\n"
-                        f"<i>Open your Coet Manager dashboard to reply immediately.</i>"
-                    )
-                    self.send_bot_notification(alert_text)
-                    
-                # Save draft or send immediately depending on approval mode
-                approval_mode = db.get_setting("approval_mode", "0") == "1"
-                
-                # Check if contact is VIP/Client/Partner and force_draft_vips rule is active
-                force_draft_vips = db.get_setting("force_draft_vips", "1") == "1"
-                contact_cat = contact.get('category', 'unknown').lower()
-                is_vip = contact_cat in ['vip', 'client', 'business_partner']
-                if force_draft_vips and is_vip:
-                    approval_mode = True # Force verification draft for high priority contacts
-                
-                if approval_mode:
-                    db.set_setting(f"draft_{sender_id}", reply_draft)
-                    db.log_event("INFO", f"Draft saved for {sender_name}: '{reply_draft[:40]}...' (Awaiting Approval)")
-                    await self.broadcast_ws("draft_created", {
-                        "telegram_id": sender_id,
-                        "draft": reply_draft
-                    })
-                else:
-                    # Dynamic typing speed simulation using setting limits with random factor
-                    try:
-                        delay_min = float(db.get_setting("reply_delay_min", "1.2"))
-                        delay_max = float(db.get_setting("reply_delay_max", "4.0"))
-                    except Exception:
-                        delay_min, delay_max = 1.2, 4.0
-                    import random
-                    typing_delay = random.uniform(delay_min, delay_max)
-                    elapsed = time.time() - start_time
-                    if elapsed < typing_delay:
-                        await asyncio.sleep(typing_delay - elapsed)
-                        
-                    msg = await self.client.send_message(sender_id, reply_draft)
-                    self.assistant_sent_message_ids.add(msg.id)
-                    
-                    # Note: We do NOT acknowledge the read to keep the message unread for the admin.
-                    
-                    # Save outgoing assistant message
-                    db.add_message(sender_id, 'assistant', reply_draft, sentiment='neutral', priority='normal', language=detected_lang, tone=detected_tone)
-                    db.log_event("INFO", f"Auto-replied to {sender_name}: {reply_draft}")
-                    
-                    # Broadcast outgoing message to UI
-                    await self.broadcast_ws("new_message", {
-                        "telegram_id": sender_id,
-                        "sender": "assistant",
-                        "text": reply_draft
-                    })
-                    
-                    # Trigger background memory consolidation for AI replies
-                    asyncio.create_task(self.trigger_memory_consolidation(sender_id))
+                # Trigger background memory consolidation for AI replies
+                asyncio.create_task(self.trigger_memory_consolidation(sender_id))
                     
         # 2. Outgoing Message Handler (Owner activity tracker)
         @self.client.on(events.NewMessage(outgoing=True))
         async def on_outgoing_message(event):
             text = event.text or ""
+            
+            # Skip if this message was sent by the automated assistant/bot code
+            if event.message.id in self.assistant_sent_message_ids:
+                self.assistant_sent_message_ids.remove(event.message.id)
+                return
+                
+            # Text-based matching to prevent race conditions during message creation
+            cleaned_text = self.normalize_text_for_match(text)
+            if cleaned_text:
+                matched_draft = None
+                for draft in list(self.assistant_sent_message_texts):
+                    if draft == cleaned_text or cleaned_text in draft or draft in cleaned_text:
+                        matched_draft = draft
+                        break
+                if matched_draft:
+                    self.assistant_sent_message_texts.discard(matched_draft)
+                    return
+
             # Intercept owner commands (starts with / or ends with ?)
             if text.strip().startswith("/") or text.strip().endswith("?"):
                 await self.execute_owner_command(event, text, is_bot=False)
                 return
                 
             if not event.is_private:
-                return
-                
-            # Skip if this message was sent by the automated assistant/bot code
-            if event.message.id in self.assistant_sent_message_ids:
-                self.assistant_sent_message_ids.remove(event.message.id)
                 return
                 
             sender = await event.get_sender()
@@ -871,7 +926,8 @@ class TelegramManager:
             })
             
         # 4. Telegram Bot Client Incoming Message Handler
-        if BOT_TOKEN:
+        if BOT_TOKEN and not self._bot_handler_registered:
+            self._bot_handler_registered = True
             @self.bot_client.on(events.NewMessage(incoming=True))
             async def on_bot_incoming_message(event):
                 if not event.is_private:
@@ -1090,9 +1146,9 @@ class TelegramManager:
                             
                         elif data == b"pub_features":
                             features_text = (
-                                "🛠️ <b>COET AUTOMATION COMMAND DIRECTORY (500+ SCHEMAS)</b>\n"
+                                "🛠️ <b>COET AUTOMATION COMMAND DIRECTORY (600+ SCHEMAS)</b>\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                "<blockquote>COET runs on a robust multi-threaded prompt & control execution matrix. Below is a subset of the 500+ available interactive commands and triggers across the bot core.</blockquote>\n\n"
+                                "<blockquote>COET runs on a robust multi-threaded prompt & control execution matrix. Below is a subset of the 600+ available interactive commands and triggers across the bot core.</blockquote>\n\n"
                                 "<b>📁 COMMAND SCHEMA CLASSIFICATIONS:</b>\n"
                                 "• <b>Autopilot Core (80+)</b>: Personality triggers, Hinglish ratios, and typing delays.\n"
                                 "• <b>Escrow & MM (100+)</b>: Deal status, networks, settlement logs, and dispute holds.\n"
@@ -1101,7 +1157,9 @@ class TelegramManager:
                                 "• <b>Payment & Accounting (50+)</b>: UPI payments, balances, credits, and ledger creation.\n"
                                 "• <b>Task & Scheduler (50+)</b>: Alert rules, timers, deadlines, and cron notifications.\n"
                                 "• <b>Prompt Tuning (50+)</b>: Temperature parameters, persona rules, and focus logs.\n"
-                                "• <b>Webhook & API (50+)</b>: Client token generator, stream logs, and webhook routing.\n\n"
+                                "• <b>Webhook & API (50+)</b>: Client token generator, stream logs, and webhook routing.\n"
+                                "• <b>Style DNA Config (50+)</b>: Custom style DNA settings, Hinglish slangs, and typos.\n"
+                                "• <b>Compliance & AML (50+)</b>: Wallet traces, blacklists, multi-sig creations, and dispute holds.\n\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                                 "<i>Select a command category below to view syntax schemas:</i>"
                             )
@@ -1110,6 +1168,7 @@ class TelegramManager:
                                 [Button.inline("👥 Group Moderation", b"pub_cmd_group"), Button.inline("📊 Telemetry & Sys", b"pub_cmd_sys")],
                                 [Button.inline("💳 Pay & Accounting", b"pub_cmd_payment"), Button.inline("⏰ Task & Scheduler", b"pub_cmd_tasks")],
                                 [Button.inline("🧬 Prompt Tuning", b"pub_cmd_prompt"), Button.inline("🔌 Webhook & API", b"pub_cmd_api")],
+                                [Button.inline("🧠 Style DNA Config", b"pub_cmd_style"), Button.inline("🛡️ Compliance & AML", b"pub_cmd_compliance")],
                                 [Button.inline("⬅️ Back to Main Menu", b"pub_back")]
                             ]
                             await event.edit(features_text, buttons=features_buttons, parse_mode="html")
@@ -1335,6 +1394,144 @@ class TelegramManager:
                                 [Button.inline("🏠 Main Menu", b"pub_back")]
                             ]
                             await event.edit(api_text, buttons=cmd_buttons, parse_mode="html")
+                            return
+
+                        elif data == b"pub_cmd_style":
+                            style_text = (
+                                "🧠 <b>STYLE DNA & LEARNING COMMANDS (50+ TRIGGERS)</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<b>🧬 ANALYSIS & PROFILING</b>\n"
+                                "• <code>/style scan [limit]</code> - Sweep messages to compile custom DNA profile.\n"
+                                "• <code>/style dna [user]</code> - Display compiled casing, slang & emoji parameters.\n"
+                                "• <code>/style export [file]</code> - Backup DNA rules to SQLite database.\n"
+                                "• <code>/style import [file]</code> - Load style configuration profiles.\n"
+                                "• <code>/style reset</code> - Reset custom style DNA to default neutral.\n"
+                                "• <code>/style weight [0-100]</code> - Weight of Style DNA tone influence on AI.\n"
+                                "• <code>/style compare [u1] [u2]</code> - Compare linguistic profiles of two users.\n"
+                                "• <code>/style profile [name]</code> - Create named style profile slot.\n"
+                                "• <code>/style delete [name]</code> - Delete custom style profile slot.\n"
+                                "• <code>/style status</code> - Show active profile status and sync state.\n\n"
+                                "<b>🗣️ SLANG & HINGLISH DICTIONARY</b>\n"
+                                "• <code>/slang register [w] [syn]</code> - Map user slang synonyms dynamically.\n"
+                                "• <code>/slang unregister [w]</code> - Delete user slang maps.\n"
+                                "• <code>/slang list</code> - View Roman Hinglish slang dictionary.\n"
+                                "• <code>/slang test [text]</code> - Preview slang substitution results on test text.\n"
+                                "• <code>/slang ratio [0-100]</code> - Blend ratio of Roman Hinglish to standard English.\n"
+                                "• <code>/slang import_preset [p]</code> - Import Hinglish slang presets (casual/street/business).\n"
+                                "• <code>/slang auto [on|off]</code> - Detect user slang pattern and auto-match.\n"
+                                "• <code>/slang ban [word]</code> - Prohibit specific slang word from responses.\n"
+                                "• <code>/slang unban [word]</code> - Remove slang word prohibition.\n"
+                                "• <code>/slang stats</code> - Show most frequent slangs used by AI.\n\n"
+                                "<b>✍️ FORMATTING & PUNCTUATION RULES</b>\n"
+                                "• <code>/casing strict [on|off]</code> - Force lowercase only vs standard capitalization.\n"
+                                "• <code>/punctuation level [0-3]</code> - Set punctuation density (0=none, 3=strict).\n"
+                                "• <code>/emojis density [0-10]</code> - Max emoji count per message.\n"
+                                "• <code>/emojis whitelist [list]</code> - Allowed emojis in responses.\n"
+                                "• <code>/emojis blacklist [list]</code> - Prohibited emojis in responses.\n"
+                                "• <code>/typos rate [0-100]</code> - Frequency of simulated typos.\n"
+                                "• <code>/typos max [count]</code> - Max typos per single message.\n"
+                                "• <code>/sentence len [min] [max]</code> - Force sentence word length boundaries.\n"
+                                "• <code>/formatting markdown [on|off]</code> - Toggle rich formatting in replies.\n"
+                                "• <code>/casing triggers [list]</code> - Capitalize words matching custom list.\n\n"
+                                "<b>🧠 REALTIME LEARNING CONTROLS</b>\n"
+                                "• <code>/learn stats</code> - View total analyzed owner messages count.\n"
+                                "• <code>/learn toggle</code> - Toggle background learning engine.\n"
+                                "• <code>/learn trigger [num]</code> - Rebuild style profile after N messages.\n"
+                                "• <code>/learn throttle [mins]</code> - Min duration between profile builds.\n"
+                                "• <code>/learn debug [on|off]</code> - Print learning updates in logs.\n"
+                                "• <code>/learn sweep [days]</code> - Clean learning database older than N days.\n"
+                                "• <code>/learn ignore [chan_id]</code> - Skip learning from specific channels.\n"
+                                "• <code>/learn path [db_file]</code> - Set custom database path for style history.\n"
+                                "• <code>/learn inspect [id]</code> - Display raw text elements of style record.\n"
+                                "• <code>/learn update [id] [txt]</code> - Update style record content.\n\n"
+                                "<b>🎭 PERSONA & EMOTIONAL SPECTRUM</b>\n"
+                                "• <code>/persona mood [casual|dry|hype|pro]</code> - Force emotional state.\n"
+                                "• <code>/persona warm_up [on|off]</code> - Change tone based on user chat duration.\n"
+                                "• <code>/persona custom_instruction [txt]</code> - Inject custom system prompt additions.\n"
+                                "• <code>/persona clear_instruction</code> - Clear custom system prompt additions.\n"
+                                "• <code>/persona view_prompt</code> - View compiled prompt instructions.\n"
+                                "• <code>/persona fallback_msg [txt]</code> - Set manual Hinglish fallback reply.\n"
+                                "• <code>/persona test_prompt [txt]</code> - Test prompt output on test string.\n"
+                                "• <code>/persona temp [0.0-1.0]</code> - Adjust creativity temperatures.\n"
+                                "• <code>/persona limit_tokens [num]</code> - Max token length per generation.\n"
+                                "• <code>/persona debug_info</code> - Dump system prompt context window info.\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Perfect mirroring. Clones your texting traits automatically.</i>"
+                            )
+                            cmd_buttons = [
+                                [Button.inline("⬅️ Back to Command Directory", b"pub_features")],
+                                [Button.inline("🏠 Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(style_text, buttons=cmd_buttons, parse_mode="html")
+                            return
+
+                        elif data == b"pub_cmd_compliance":
+                            compliance_text = (
+                                "🛡️ <b>BLOCKCHAIN COMPLIANCE & AML COMMANDS (50+ TRIGGERS)</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<b>👛 WALLET TRACING & RISKS</b>\n"
+                                "• <code>/compliance trace [addr] [chain]</code> - Trace target address for illicit funds.\n"
+                                "• <code>/compliance risk_limit [0-100]</code> - Max risk score threshold allowed.\n"
+                                "• <code>/compliance score [addr]</code> - Fetch instant AML risk percentage.\n"
+                                "• <code>/compliance path [addr]</code> - Check transaction path hops to mixers.\n"
+                                "• <code>/compliance scan_tx [tx_hash]</code> - Scan single transaction hash.\n"
+                                "• <code>/compliance set_api [key]</code> - Bind blockchain API scanner credential.\n"
+                                "• <code>/compliance check_chain [c]</code> - Verify chain scanning status (TRX, ETH, BSC).\n"
+                                "• <code>/compliance force_check</code> - Trigger full wallet rescan on next message.\n"
+                                "• <code>/compliance alert_channel [id]</code> - Set warning logs channel for compliance.\n"
+                                "• <code>/compliance db_stats</code> - Show database size of tracked wallet histories.\n\n"
+                                "<b>🛡️ AML BLACKLISTS & WHITELISTS</b>\n"
+                                "• <code>/aml blacklist add [addr]</code> - Prevent automated payouts to address.\n"
+                                "• <code>/aml blacklist remove [addr]</code> - Allow automated payouts to address.\n"
+                                "• <code>/aml whitelist add [addr]</code> - Skip risk scanning for escrow partner address.\n"
+                                "• <code>/aml whitelist remove [addr]</code> - Restore risk scanning for address.\n"
+                                "• <code>/aml list [black|white]</code> - View registered addresses.\n"
+                                "• <code>/aml import_blacklist [url]</code> - Import global OFAC blacklist databases.\n"
+                                "• <code>/aml check [addr]</code> - Verify if address is whitelisted/blacklisted.\n"
+                                "• <code>/aml clear [black|white]</code> - Wipe database lists.\n"
+                                "• <code>/aml set_tag [addr] [tag]</code> - Apply metadata tag (e.g. 'scammer').\n"
+                                "• <code>/aml search_tag [tag]</code> - Search addresses by metadata tag.\n\n"
+                                "<b>🔐 MULTI-SIG VAULT & ESCROW CONTROLS</b>\n"
+                                "• <code>/multisig create [b] [s] [val]</code> - Instantiate multi-sig wallet vault.\n"
+                                "• <code>/multisig add_key [vault_id] [pk]</code> - Append public key to signers list.\n"
+                                "• <code>/multisig status [vault_id]</code> - Check pending signatures for release.\n"
+                                "• <code>/multisig sign [vault_id]</code> - Sign transaction payout release.\n"
+                                "• <code>/multisig reject [vault_id]</code> - Oppose payout release and initiate dispute.\n"
+                                "• <code>/multisig refund_sign [v]</code> - Sign transaction reversal back to buyer.\n"
+                                "• <code>/multisig view_keys [v]</code> - Display key ownership details.\n"
+                                "• <code>/multisig balance [v]</code> - Query wallet address balance on-chain.\n"
+                                "• <code>/multisig close [v]</code> - Close multi-sig vault after release/refund.\n"
+                                "• <code>/multisig history</code> - View all historical multi-sig transactions.\n\n"
+                                "<b>⚖️ DISPUTE ESCROW LOCKS</b>\n"
+                                "• <code>/dispute lock [deal_id]</code> - Freeze escrow release during active conflict.\n"
+                                "• <code>/dispute unlock [deal_id]</code> - Clear hold flag for payment.\n"
+                                "• <code>/dispute evidence [deal_id] [url]</code> - Add screenshot/chat text proof.\n"
+                                "• <code>/dispute view_evidence [deal_id]</code> - View compiled escrow evidence links.\n"
+                                "• <code>/dispute mediator [deal_id] [id]</code> - Assign mediator user.\n"
+                                "• <code>/dispute split [deal] [b_pct] [s_pct]</code> - Release split deposit.\n"
+                                "• <code>/dispute arbiter [deal_id]</code> - Route dispute case to global arbiter node.\n"
+                                "• <code>/dispute timer [deal_id] [h]</code> - Set time limit (hours) for evidence.\n"
+                                "• <code>/dispute auto_refund [on|off]</code> - Auto-refund buyer if seller goes MIA.\n"
+                                "• <code>/dispute log_sheet [deal_id]</code> - Export dispute audit reports.\n\n"
+                                "<b>📑 COMPLIANCE AUDITING & REPORTING</b>\n"
+                                "• <code>/audit generate [deal_id]</code> - Output signed PDF receipt for transaction.\n"
+                                "• <code>/audit view_logs [user_id]</code> - Pull historical transactions for user.\n"
+                                "• <code>/audit export_csv [start] [end]</code> - Dump transaction history to CSV sheet.\n"
+                                "• <code>/audit set_legal_name [name]</code> - Set legal owner entity name.\n"
+                                "• <code>/audit tax_rate [pct]</code> - Calibrate tax/vat calculation on invoices.\n"
+                                "• <code>/audit summary [days]</code> - Show volume, fees, and risk distributions.\n"
+                                "• <code>/audit clean_logs [days]</code> - Prune logs older than N days.\n"
+                                "• <code>/audit backup [dest]</code> - Backup compliance databases.\n"
+                                "• <code>/audit integrity</code> - Check SQLite hashes for anti-tamper compliance.\n"
+                                "• <code>/audit system_status</code> - Get status of AML nodes, escrows, and databases.\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Secure compliance operations on autopilot. Zero risk exposure.</i>"
+                            )
+                            cmd_buttons = [
+                                [Button.inline("⬅️ Back to Command Directory", b"pub_features")],
+                                [Button.inline("🏠 Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(compliance_text, buttons=cmd_buttons, parse_mode="html")
                             return
 
                         elif data == b"pub_security":
@@ -1867,6 +2064,140 @@ class TelegramManager:
                         elif data == b"pub_case_blueprint":
                             await event.edit("<b>📈 BLUEPRINT: COMPREHENSIVE DEPLOYMENT MAPS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n• Target: Corporate bot scaling maps.\n• Scope: Configuration guidelines, templates, SLAs.\n• Cost: Included in Standard and Enterprise plans.", buttons=[[Button.inline("⬅️ Back to Case Wiki", b"pub_case_wiki")], [Button.inline("🏠 Main Menu", b"pub_back")]], parse_mode="html")
                             return
+                        elif data == b"pub_admin_demo" or data == b"pub_adm_pg1":
+                            admin_demo_text = (
+                                "🛠️ <b>PRO DIGITAL TWIN CONTROL CONSOLE (DEMO - PAGE 1)</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>Welcome to the administrative control preview. Configure system logic, manage databases, and tune models like a pro.</blockquote>\n\n"
+                                "<b>⚙️ AUTOPILOT CORE & PERSONALITY SUITE:</b>\n"
+                                "• <b>Autopilot Persona Model</b>: Select target LLM versions and tune persona weights.\n"
+                                "• <b>Text Casing Rules</b>: Set lowercase profiles and capitalisation triggers.\n"
+                                "• <b>Response Speed Delays</b>: Calibrate typing simulation and delay limits.\n"
+                                "• <b>Longterm Memory Store</b>: Inspect client background logs and relationship commitments.\n"
+                                "• <b>Model Temp Parameter</b>: Adjust creativity thresholds (0.0 to 1.0).\n"
+                                "• <b>System Activity Presets</b>: Toggle auto-busy and active hours scheduler.\n"
+                                "• <b>Slang Hinglish Blend</b>: Calibrate slang blending ratios dynamically.\n"
+                                "• <b>Persona Overrides</b>: Append custom system instructions into active memory.\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Page 1 of 3 • Select a control module below:</i>"
+                            )
+                            admin_keyboard = [
+                                [
+                                    Button.inline("🤖 Autopilot Persona Model", b"pub_adm_persona"),
+                                    Button.inline("✍️ Text Casing Rules", b"pub_adm_casing")
+                                ],
+                                [
+                                    Button.inline("⚡ Response Speed Delays", b"pub_adm_speed"),
+                                    Button.inline("🧠 Longterm Memory Store", b"pub_adm_memory")
+                                ],
+                                [
+                                    Button.inline("🧪 Model Temp Parameter", b"pub_adm_temp"),
+                                    Button.inline("⚙️ System Activity Presets", b"pub_adm_presets")
+                                ],
+                                [
+                                    Button.inline("🗣️ Slang Hinglish Blend", b"pub_adm_slang"),
+                                    Button.inline("📝 Persona Overrides", b"pub_adm_persona_over")
+                                ],
+                                [
+                                    Button.inline("➡️ Next Page (Security)", b"pub_adm_pg2")
+                                ],
+                                [Button.inline("⬅️ Back to Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(admin_demo_text, buttons=admin_keyboard, parse_mode="html")
+                            return
+                        elif data == b"pub_adm_pg2":
+                            admin_demo_text = (
+                                "🛠️ <b>PRO DIGITAL TWIN CONTROL CONSOLE (DEMO - PAGE 2)</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>Welcome to the administrative control preview. Configure group protection, CAPTCHA gates, and security locks.</blockquote>\n\n"
+                                "<b>⚙️ SECURITY & GROUP MODERATION SUITE:</b>\n"
+                                "• <b>Anti-Scam Verification</b>: Run cross-database checkups on user profiles.\n"
+                                "• <b>Global Member Mutes</b>: Manage silenced users across channels.\n"
+                                "• <b>Spam Word Blacklists</b>: Filter out scam phrases and malicious links.\n"
+                                "• <b>Math CAPTCHA Gates</b>: Guard join-requests with mathematical equations.\n"
+                                "• <b>Emergency Panic Lock</b>: Instantly suspend all automation loops.\n"
+                                "• <b>Maintenance Standby</b>: Pause auto-responses for administrative tasks.\n"
+                                "• <b>User Infraction Limits</b>: Calibrate violation thresholds before bans.\n"
+                                "• <b>Active Group Chats</b>: Manage channels and group bots whitelist.\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Page 2 of 3 • Select a control module below:</i>"
+                            )
+                            admin_keyboard = [
+                                [
+                                    Button.inline("🛡️ Anti-Scam Verification", b"pub_adm_antiscam"),
+                                    Button.inline("🔇 Global Member Mutes", b"pub_adm_mutes")
+                                ],
+                                [
+                                    Button.inline("🚫 Spam Word Blacklists", b"pub_adm_blacklist"),
+                                    Button.inline("🎮 Math CAPTCHA Gates", b"pub_adm_captcha")
+                                ],
+                                [
+                                    Button.inline("🚨 Emergency Panic Lock", b"pub_adm_panic"),
+                                    Button.inline("🛠️ Maintenance Standby", b"pub_adm_maint")
+                                ],
+                                [
+                                    Button.inline("🚯 User Infraction Limits", b"pub_adm_infractions"),
+                                    Button.inline("👥 Active Group Chats", b"pub_adm_channels")
+                                ],
+                                [
+                                    Button.inline("⬅️ Prev Page", b"pub_adm_pg1"),
+                                    Button.inline("➡️ Next Page (Ledgers)", b"pub_adm_pg3")
+                                ],
+                                [Button.inline("⬅️ Back to Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(admin_demo_text, buttons=admin_keyboard, parse_mode="html")
+                            return
+                        elif data == b"pub_adm_pg3":
+                            admin_demo_text = (
+                                "🛠️ <b>PRO DIGITAL TWIN CONTROL CONSOLE (DEMO - PAGE 3)</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<blockquote>Welcome to the administrative control preview. Manage billing ledgers, API rotator keys, and webhook pipelines.</blockquote>\n\n"
+                                "<b>⚙️ ACCOUNTING, SYSTEM & API INTEGRATIONS:</b>\n"
+                                "• <b>UPI Fiat Settlement</b>: Setup dynamic QR payout addresses.\n"
+                                "• <b>Ledger Balance Sync</b>: Check credit usage sheets.\n"
+                                "• <b>Invoice Creator Engine</b>: Issue invoices for digital goods.\n"
+                                "• <b>Promo Credit Allocator</b>: Push balance rewards to partners.\n"
+                                "• <b>API Key Pool Rotator</b>: Rotate and test active Gemini keys.\n"
+                                "• <b>System Uptime Monitors</b>: Inspect core hardware logs.\n"
+                                "• <b>DB WAL Engine Info</b>: Query SQLite concurrent connections.\n"
+                                "• <b>Webhook Sockets Stream</b>: Watch outbound socket loops.\n"
+                                "• <b>Debug Live Logs</b>: View real-time error event aggregates.\n"
+                                "• <b>Timer Alert Scheduler</b>: View cron tasks and notifications.\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "<i>Page 3 of 3 • Select a control module below:</i>"
+                            )
+                            admin_keyboard = [
+                                [
+                                    Button.inline("💳 UPI Fiat Settlement", b"pub_adm_upi"),
+                                    Button.inline(" Ledger Balance Sync", b"pub_adm_ledger")
+                                ],
+                                [
+                                    Button.inline("💵 Invoice Creator Engine", b"pub_adm_invoice"),
+                                    Button.inline("📊 Promo Credit Allocator", b"pub_adm_credits")
+                                ],
+                                [
+                                    Button.inline("🔑 API Key Pool Rotator", b"pub_adm_keypools"),
+                                    Button.inline("🩺 System Uptime Monitors", b"pub_adm_uptime")
+                                ],
+                                [
+                                    Button.inline("📁 DB WAL Engine Info", b"pub_adm_dbwal"),
+                                    Button.inline("🔌 Webhook Sockets Stream", b"pub_adm_webhooks")
+                                ],
+                                [
+                                    Button.inline("📡 Debug Live Logs", b"pub_adm_logs"),
+                                    Button.inline("⏰ Timer Alert Scheduler", b"pub_adm_alerts")
+                                ],
+                                [
+                                    Button.inline("⬅️ Prev Page (Security)", b"pub_adm_pg2")
+                                ],
+                                [Button.inline("⚡ Deploy Autopilot ($2 Trial)", b"pub_setup")],
+                                [Button.inline("⬅️ Back to Main Menu", b"pub_back")]
+                            ]
+                            await event.edit(admin_demo_text, buttons=admin_keyboard, parse_mode="html")
+                            return
+                        elif data.startswith(b"pub_adm_") and data not in [b"pub_adm_pg1", b"pub_adm_pg2", b"pub_adm_pg3"]:
+                            await event.answer("⚠️ You need to purchase a subscription to access this page.", alert=True)
+                            return
 
                         # ==================== EXIST BACK ROUTER ====================
 
@@ -1893,6 +2224,7 @@ class TelegramManager:
                             )
                             reply_keyboard = [
                                 [Button.inline("⚡ Deploy Your Digital Twin", b"pub_setup")],
+                                [Button.inline("🛠️ Pro Admin Panel Demo (20+ Sub-pages)", b"pub_admin_demo")],
                                 [Button.url("🔍 Check Live Demo (@CatVos)", "https://t.me/CatVos")],
                                 [Button.inline("🧠 Style Mirroring DNA", b"pub_dna_info"), Button.inline("⚙️ Command Directory (300+)", b"pub_features")],
                                 [Button.inline("🛡️ Escrow & Security", b"pub_security"), Button.inline("👥 Success Vouches", b"pub_vouches")],
@@ -2853,7 +3185,7 @@ class TelegramManager:
             return
             
         # Call Gemini to respond as public business assistant using 15s timeout with key rotation
-        history = db.get_chat_history(sender_id, limit=150)
+        history = db.get_chat_history(sender_id, limit=350)
         personality = db.get_setting("ai_personality")
 
         # Check conversation context flags
@@ -2875,38 +3207,52 @@ class TelegramManager:
                     pass
                 break
         
+        start_time = time.time()
         async with event.client.action(sender_id, 'typing'):
-            try:
-                analysis = await asyncio.wait_for(
-                    asyncio.to_thread(
-                        ai_engine.generate_analysis_and_response,
-                        message_text=text,
-                        sender_info=contact,
-                        chat_history=history,
-                        status_mode=current_status,
-                        contact_notes=contact.get('notes', ''),
-                        custom_rules=personality,
-                        has_introduced=has_introduced_bot,
-                        is_followup=is_followup_bot
-                    ),
-                    timeout=15.0
-                )
-            except Exception as e:
-                db.log_event("WARNING", f"Gemini API invocation failed ({e}) for client bot message from {sender_name}. Switching to high-fidelity Offline Backup engine.")
+            # Fast pre-check: skip Gemini call entirely if no healthy keys available
+            import ai_engine as _ai
+            _healthy_keys = _ai.get_healthy_keys()
+            if not _healthy_keys:
+                db.log_event("WARNING", f"No healthy Gemini keys — instant fallback for {sender_name}.")
                 fallback_reply = ai_engine.get_rule_based_fallback(
                     text, current_status, history, contact.get('first_name', '')
                 )
                 analysis = {
-                    "sentiment": "neutral",
-                    "priority": "normal",
+                    "sentiment": "neutral", "priority": "normal",
                     "suggested_category": contact.get('category', 'unknown'),
-                    "relationship_insight": "All Gemini API keys are currently rate-limited or offline. Enforced local offline RAG rules.",
                     "language": "hinglish" if any(x in text.lower() for x in ["bhai", "yaar", "kya", "hai", "ko"]) else "english",
-                    "tone": "casual",
-                    "suggested_personality": "Human Offline Backup",
-                    "draft_reply": fallback_reply,
-                    "schedule_reminder": None
+                    "tone": "casual", "suggested_personality": "Human Offline Backup",
+                    "draft_reply": fallback_reply, "schedule_reminder": None
                 }
+            else:
+                try:
+                    analysis = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            ai_engine.generate_analysis_and_response,
+                            message_text=text,
+                            sender_info=contact,
+                            chat_history=history,
+                            status_mode=current_status,
+                            contact_notes=contact.get('notes', ''),
+                            custom_rules=personality,
+                            has_introduced=has_introduced_bot,
+                            is_followup=is_followup_bot
+                        ),
+                        timeout=8.0
+                    )
+                except Exception as e:
+                    db.log_event("WARNING", f"Gemini API failed ({e}) for {sender_name}. Using Offline Backup engine.")
+                    fallback_reply = ai_engine.get_rule_based_fallback(
+                        text, current_status, history, contact.get('first_name', '')
+                    )
+                    analysis = {
+                        "sentiment": "neutral", "priority": "normal",
+                        "suggested_category": contact.get('category', 'unknown'),
+                        "language": "hinglish" if any(x in text.lower() for x in ["bhai", "yaar", "kya", "hai", "ko"]) else "english",
+                        "tone": "casual", "suggested_personality": "Human Offline Backup",
+                        "draft_reply": fallback_reply, "schedule_reminder": None
+                    }
+
                 
             reply = analysis.get("draft_reply", "")
             
@@ -2918,7 +3264,9 @@ class TelegramManager:
                 delay_min, delay_max = 1.2, 4.0
             import random
             typing_delay = random.uniform(delay_min, delay_max)
-            await asyncio.sleep(typing_delay)
+            elapsed = time.time() - start_time
+            if elapsed < typing_delay:
+                await asyncio.sleep(typing_delay - elapsed)
             
             # If the reply contains the preview channel username @previewcom, attach an inline button popup link
             from telethon import Button
