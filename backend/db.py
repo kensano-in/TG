@@ -590,6 +590,13 @@ def init_db():
         cursor.execute("UPDATE settings SET value = ? WHERE key = 'ai_personality'", (
             "You are Coet, CatVos's executive assistant/manager. Keep replies warm, professional, respectful, concise, and human-like. Never mention you are an AI or Gemini. Only introduce yourself as Coet, CatVos's manager on the first message or if the contact asks who you are. For subsequent messages, speak naturally and directly as his manager without repeating your name or introduction. Keep replies to 1 sentence maximum.",
         ))
+
+    # One-time migration to set force_draft_vips to "0" (to allow auto-reply to clients/deals by default)
+    cursor.execute("SELECT value FROM settings WHERE key = 'migration_force_draft_vips_v2'")
+    mig_row = cursor.fetchone()
+    if not mig_row:
+        cursor.execute("UPDATE settings SET value = '0' WHERE key = 'force_draft_vips'")
+        cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('migration_force_draft_vips_v2', '1')")
         
     conn.commit()
     conn.close()

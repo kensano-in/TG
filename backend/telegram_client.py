@@ -565,7 +565,7 @@ class TelegramManager:
 
             # Resolve approval_mode for all paths (keyword rules, acknowledgments, AI path)
             approval_mode = db.get_setting("approval_mode", "0") == "1"
-            force_draft_vips = db.get_setting("force_draft_vips", "1") == "1"
+            force_draft_vips = db.get_setting("force_draft_vips", "0") == "1"
             contact_cat = contact.get('category', 'unknown').lower()
             is_vip = contact_cat in ['vip', 'client', 'business_partner']
             if force_draft_vips and is_vip:

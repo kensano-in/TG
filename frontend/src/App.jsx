@@ -63,7 +63,7 @@ function App() {
     timezone: 'Asia/Kolkata',
     owner_activity_override: 'auto',
     bypass_family_friends: false,
-    force_draft_vips: true,
+    force_draft_vips: false,
     tone_profile: 'concise',
     auto_sleep_enabled: true,
     auto_busy_enabled: true,

@@ -30,28 +30,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Temporary public logs endpoint for diagnostics
-@app.get("/api/temp-logs")
-async def temp_logs():
-    try:
-        logs = db.get_logs(limit=100)
-        return {"status": "success", "logs": logs}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-# Temporary public settings endpoint for diagnostics
-@app.get("/api/temp-settings")
-async def temp_settings():
-    try:
-        conn = db.get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT key, value FROM settings")
-        rows = cursor.fetchall()
-        conn.close()
-        settings = {row[0] if not isinstance(row, dict) else row['key']: row[1] if not isinstance(row, dict) else row['value'] for row in rows}
-        return {"status": "success", "settings": settings}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
 
 # Startup and shutdown lifecycle
 @app.on_event("startup")
@@ -276,7 +254,7 @@ async def get_settings(token: dict = Depends(verify_token)):
         "timezone": db.get_setting("timezone", "Asia/Kolkata"),
         "owner_activity_override": db.get_setting("owner_activity_override", "auto"),
         "bypass_family_friends": db.get_setting("bypass_family_friends", "0") == "1",
-        "force_draft_vips": db.get_setting("force_draft_vips", "1") == "1",
+        "force_draft_vips": db.get_setting("force_draft_vips", "0") == "1",
         "tone_profile": db.get_setting("tone_profile", "concise"),
         "smart_hinglish": db.get_setting("smart_hinglish", "1") == "1",
         "auto_sleep_enabled": db.get_setting("auto_sleep_enabled", "1") == "1",
