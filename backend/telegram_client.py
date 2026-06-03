@@ -38,6 +38,7 @@ class TelegramManager:
         self.websocket_clients = set()
         self.assistant_sent_message_ids = set()
         self.assistant_sent_message_texts = set()
+        self.dashboard_sent_message_texts = set()
         self.flood_trackers = {}
         self.me_id = None
 
@@ -862,7 +863,20 @@ class TelegramManager:
                 
             # Text-based matching to prevent race conditions during message creation
             cleaned_text = self.normalize_text_for_match(text)
+            
+            # Check if this is a manual response sent from the dashboard
+            is_dashboard_reply = False
             if cleaned_text:
+                matched_dashboard = None
+                for draft in list(self.dashboard_sent_message_texts):
+                    if draft == cleaned_text or cleaned_text in draft or draft in cleaned_text:
+                        matched_dashboard = draft
+                        break
+                if matched_dashboard:
+                    self.dashboard_sent_message_texts.discard(matched_dashboard)
+                    is_dashboard_reply = True
+
+            if cleaned_text and not is_dashboard_reply:
                 matched_draft = None
                 for draft in list(self.assistant_sent_message_texts):
                     if draft == cleaned_text or cleaned_text in draft or draft in cleaned_text:
@@ -873,9 +887,11 @@ class TelegramManager:
                     return
 
             # Intercept owner commands (starts with / or ends with ?)
-            if text.strip().startswith("/") or text.strip().endswith("?"):
-                await self.execute_owner_command(event, text, is_bot=False)
-                return
+            # Only intercept if it's NOT a manual response sent from the dashboard
+            if not is_dashboard_reply:
+                if text.strip().startswith("/") or text.strip().endswith("?"):
+                    await self.execute_owner_command(event, text, is_bot=False)
+                    return
                 
             if not event.is_private:
                 return
@@ -3306,6 +3322,9 @@ class TelegramManager:
         """Sends a message immediately on behalf of the user (called from dashboard)."""
         await self.connect()
         try:
+            normalized = self.normalize_text_for_match(text)
+            if normalized:
+                self.dashboard_sent_message_texts.add(normalized)
             await self.client.send_message(telegram_id, text)
             # The on_outgoing_message event listener will handle the logging, 
             # draft clearing, and WS broadcasting for manual replies to avoid duplicates.
