@@ -833,6 +833,42 @@ class TelegramManager:
                         conn.commit()
                         conn.close()
                         db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL IMPLEMENTED: Deleted keyword rule '{kw}' based on instruction.")
+                elif action == "append_knowledge_base":
+                    fact = system_update.get("value")
+                    if fact:
+                        current_kb = db.get_setting("knowledge_base", "")
+                        new_kb = f"{current_kb.strip()}\n- {fact.strip()}".strip() if current_kb else f"- {fact.strip()}"
+                        db.set_setting("knowledge_base", new_kb)
+                        db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL IMPLEMENTED: Appended fact to knowledge base: '{fact}'")
+                elif action == "update_personality":
+                    trait = system_update.get("value")
+                    if trait:
+                        current_pers = db.get_setting("ai_personality", "")
+                        new_pers = f"{current_pers.strip()}\n- {trait.strip()}".strip() if current_pers else f"- {trait.strip()}"
+                        db.set_setting("ai_personality", new_pers)
+                        db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL IMPLEMENTED: Appended trait to personality: '{trait}'")
+                elif action == "mute_contact":
+                    target = system_update.get("target")
+                    if target:
+                        t_id = db.resolve_contact_id_by_identifier(target)
+                        if t_id:
+                            db.update_contact(t_id, is_muted=1)
+                            db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL IMPLEMENTED: Muted contact '{target}' ({t_id}) based on instruction.")
+                elif action == "unmute_contact":
+                    target = system_update.get("target")
+                    if target:
+                        t_id = db.resolve_contact_id_by_identifier(target)
+                        if t_id:
+                            db.update_contact(t_id, is_muted=0)
+                            db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL IMPLEMENTED: Unmuted contact '{target}' ({t_id}) based on instruction.")
+                elif action == "set_contact_category":
+                    target = system_update.get("target")
+                    cat = system_update.get("value")
+                    if target and cat:
+                        t_id = db.resolve_contact_id_by_identifier(target)
+                        if t_id:
+                            db.update_contact(t_id, category=cat)
+                            db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL IMPLEMENTED: Set contact '{target}' ({t_id}) category to '{cat}' based on instruction.")
             
             is_deal = analysis.get("is_deal", False)
             deal_details = analysis.get("deal_details", "")

@@ -1158,3 +1158,29 @@ def match_qa_backup(message_text):
     if best_ratio >= 0.8:
         return best_match
     return None
+
+def resolve_contact_id_by_identifier(identifier):
+    """
+    Resolves a contact's telegram_id from either a numeric string, username (with or without @), or raw integer.
+    Returns integer telegram_id or None.
+    """
+    if not identifier:
+        return None
+    import re
+    # If it is numeric
+    id_str = str(identifier).strip().replace("@", "")
+    if id_str.isdigit():
+        return int(id_str)
+        
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Search by username case-insensitively
+        cursor.execute("SELECT telegram_id FROM contacts WHERE LOWER(username) = ?", (id_str.lower(),))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return row[0]
+    except Exception as e:
+        print(f"Error resolving contact identifier: {e}")
+    return None

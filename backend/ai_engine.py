@@ -860,7 +860,7 @@ JSON ONLY:
     "deal_details": "brief description of deal terms, value or items, or empty string", // e.g. "wants to buy WP Alt", "escrow coordination", "needs website project design quote"
     "draft_reply": "<your reply here — sounds like a real person texted it>",
     "schedule_reminder": {{"task": null, "due_time": null}},
-    "system_update": {{"action": "update_setting/add_keyword_rule/delete_keyword_rule/none", "key": "setting_key_to_update", "value": "new_setting_value", "keyword": "keyword_for_rule", "response": "response_for_rule"}} // If Sensei (@shinichirofr) gives you an instruction to modify your settings or rules, specify the action, key, value, keyword, or response. Otherwise set this entire field to null.
+    "system_update": {{"action": "update_setting/add_keyword_rule/delete_keyword_rule/append_knowledge_base/update_personality/mute_contact/unmute_contact/set_contact_category/none", "key": "setting_key_to_update", "value": "new_setting_value_or_fact_or_trait_or_category", "keyword": "keyword_for_rule", "response": "response_for_rule", "target": "username_or_id_to_mute_or_unmute_or_categorize"}} // If Sensei (@shinichirofr) gives you an instruction to modify settings, rules, knowledge base, personality, or contact states, specify the action and fields. Otherwise set this field to null.
 }}
 """
 
