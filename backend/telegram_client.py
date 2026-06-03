@@ -4395,8 +4395,14 @@ class TelegramManager:
         """Directly sends a message to a username on behalf of the userbot."""
         await self.connect()
         try:
-            # Send message without saving it as a manual dashboard reply
-            await self.client.send_message(target_username, text)
+            # Clean username if it has leading @ or whitespace
+            username_clean = target_username.strip()
+            if username_clean.startswith('@'):
+                username_clean = username_clean[1:]
+            
+            # Retrieve target entity actively from Telegram servers to resolve it
+            entity = await self.client.get_entity(username_clean)
+            await self.client.send_message(entity, text)
             return {"status": "success"}
         except Exception as e:
             db.log_event("ERROR", f"Failed to send direct message to {target_username}: {str(e)}")

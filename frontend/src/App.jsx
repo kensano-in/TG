@@ -8072,7 +8072,33 @@ function App() {
             const f = dealMsgFields;
             const svc = SERVICE_TYPES.find(s => s.key === dealMsgServiceType) || SERVICE_TYPES[0];
             const hr = isEnhanced ? '⚡ ━━━━━━━━━━━━━━━━━━━━━━━━ ⚡' : '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
-            const orderId = f.order_id || 'ORDER-' + Math.random().toString(36).substring(2,12).toUpperCase();
+            const generateCoolOrderId = (serviceType) => {
+              const shortForms = {
+                whatsapp_alt: 'WP',
+                telegram_acc: 'TG',
+                instagram_acc: 'IG',
+                gmail_acc: 'GM',
+                facebook_acc: 'FB',
+                crypto_wallet: 'CR',
+                vpn_access: 'VP',
+                custom_service: 'CS'
+              };
+              const sfx = shortForms[serviceType] || 'XX';
+              const now = new Date();
+              const day = String(now.getDate()).padStart(2, '0');
+              const year = now.getFullYear();
+              const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+              let rand1 = '';
+              for (let i = 0; i < 6; i++) {
+                rand1 += chars.charAt(Math.floor(Math.random() * chars.length));
+              }
+              let rand2 = '';
+              for (let i = 0; i < 6; i++) {
+                rand2 += chars.charAt(Math.floor(Math.random() * chars.length));
+              }
+              return `XX${rand1}${day}${sfx}${year}${rand2}`;
+            };
+            const orderId = f.order_id || generateCoolOrderId(dealMsgServiceType);
 
             let serviceBlock = '';
             let loginBlock = '';
