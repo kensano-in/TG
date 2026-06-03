@@ -338,8 +338,13 @@ def check_fast_path_query(message_text, status_mode="focus", chat_history=None, 
         else:
             if is_hinglish:
                 reply = (
-                    "👉 @previewcom (telegram)\n\n"
-                    "If you require fully customized design/video work, kindly wait. CatVos will coordinate with you directly to discuss your project brief as soon as he is back online."
+                    "haan bhai, design aur editing ke preview ke liye hamara link dekh sakte ho: @previewcom (telegram)\n\n"
+                    "agar customized design/video work karwana hai toh please details share kar do, CatVos aate hi directly contact kar lega."
+                )
+            else:
+                reply = (
+                    "Yes, you can browse our design and editing portfolio on our preview channel: @previewcom (telegram)\n\n"
+                    "If you need customized design or video work, please leave your project brief here. CatVos will coordinate with you directly once he is back online."
                 )
             return reply, "edit_preview"
 
