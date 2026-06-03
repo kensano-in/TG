@@ -467,7 +467,7 @@ def init_db():
         ("timezone", "Asia/Kolkata"), # default timezone (India)
         ("owner_activity_override", "auto"), # auto, online, offline
         ("bypass_family_friends", "0"), # bypass auto replies for family & friends
-        ("force_draft_vips", "1"), # force drafts for vip/clients
+        ("force_draft_vips", "0"), # force drafts for vip/clients
         ("tone_profile", "concise"), # concise, elaborated
         ("smart_hinglish", "1"), # smart detection and reply in Hinglish
         ("auto_sleep_enabled", "1"), # auto-sleep at night
