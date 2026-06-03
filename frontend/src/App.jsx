@@ -8243,7 +8243,7 @@ Thank you for choosing ${f.store_name || 'us'} 🤍`;
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                  'Authorization': `Bearer ${token || localStorage.getItem('token')}`
                 },
                 body: JSON.stringify({
                   target_username: f.buyer_username,
