@@ -563,6 +563,14 @@ class TelegramManager:
                 db.log_event("INFO", f"Owner is active online. Skipping auto-reply for {sender_name}.")
                 return
 
+            # Resolve approval_mode for all paths (keyword rules, acknowledgments, AI path)
+            approval_mode = db.get_setting("approval_mode", "0") == "1"
+            force_draft_vips = db.get_setting("force_draft_vips", "1") == "1"
+            contact_cat = contact.get('category', 'unknown').lower()
+            is_vip = contact_cat in ['vip', 'client', 'business_partner']
+            if force_draft_vips and is_vip:
+                approval_mode = True
+
             # Check maximum reply limit per contact session (5 replies)
             reply_limit = 5
             replies_sent = db.get_assistant_reply_count_since_last_owner(sender_id)
@@ -611,14 +619,7 @@ class TelegramManager:
                 db.log_event("INFO", f"Instant keyword rule matched for '{text[:20]}' on keyword '{rule_kw}'. Actions: {action_type}")
                 
                 if matched_response:
-                    # Check approval mode
-                    approval_mode = db.get_setting("approval_mode", "0") == "1"
-                    # If contact is VIP/Client/Partner and force_draft_vips rule is active
-                    force_draft_vips = db.get_setting("force_draft_vips", "1") == "1"
-                    contact_cat = contact.get('category', 'unknown').lower()
-                    is_vip = contact_cat in ['vip', 'client', 'business_partner']
-                    if force_draft_vips and is_vip:
-                        approval_mode = True
+                    # approval_mode is resolved globally at the top of the handler
                     
                     if approval_mode:
                         db.set_setting(f"draft_{sender_id}", matched_response)
@@ -673,7 +674,7 @@ class TelegramManager:
             }
             is_ack = text_clean in acknowledgments or (len(text_clean) <= 10 and any(w in text_clean for w in ["ok", "done", "thanks", "thx", "cool"]))
             
-            if is_ack and enable_reactions:
+            if is_ack and enable_reactions and not approval_mode:
                 # Mark as read after humanized delay
                 if enable_human_delays:
                     read_delay = random.uniform(1.2, 3.2)
@@ -702,23 +703,6 @@ class TelegramManager:
                     db.log_event("WARNING", f"Failed to react to message: {e}")
                     # If reaction fails, continue to normal reply path
 
-            # Check approval mode before showing typing indicator or marking read
-            approval_mode = db.get_setting("approval_mode", "0") == "1"
-            force_draft_vips = db.get_setting("force_draft_vips", "1") == "1"
-            contact_cat = contact.get('category', 'unknown').lower()
-            is_vip = contact_cat in ['vip', 'client', 'business_partner']
-            if force_draft_vips and is_vip:
-                approval_mode = True
-
-            # Simulated human reading delay before marking read for AI path
-            if not approval_mode:
-                if enable_human_delays:
-                    read_delay = random.uniform(1.5, 3.5)
-                    await asyncio.sleep(read_delay)
-                try:
-                    await event.message.mark_read()
-                except Exception:
-                    pass
             # Cognitive pause before starting typing indicator for AI path
             if enable_human_delays:
                 await asyncio.sleep(random.uniform(0.5, 1.2))
@@ -855,23 +839,31 @@ class TelegramManager:
                         "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                         "<i>Session auto-reply paused. Have a productive day. — Coet</i>"
                     )
-                    async with self.client.action(sender_id, 'typing'):
-                        await asyncio.sleep(2.0)
-                        normalized = self.normalize_text_for_match(lockout_msg)
-                        if normalized:
-                            self.assistant_sent_message_texts.add(normalized)
-                        msg = await self.client.send_message(sender_id, lockout_msg, parse_mode="html")
-                        self.assistant_sent_message_ids.add(msg.id)
-                    db.add_message(sender_id, 'assistant', lockout_msg, sentiment='neutral', priority='low', language='english', tone='formal')
-                    db.set_setting(f"chitchat_locked_{sender_id}", "1")
-                    db.log_event("WARNING", f"🚫 CHITCHAT SHIELD TRIGGERED: Paused auto-replies for {sender_name} ({sender_id}) due to casual chitchat.")
-                    
-                    await self.broadcast_ws("new_message", {
-                        "telegram_id": sender_id,
-                        "sender": "assistant",
-                        "text": lockout_msg
-                    })
-                    return
+                    if approval_mode:
+                        analysis["draft_reply"] = lockout_msg
+                        reply_draft = lockout_msg
+                    else:
+                        try:
+                            await event.message.mark_read()
+                        except Exception:
+                            pass
+                        async with self.client.action(sender_id, 'typing'):
+                            await asyncio.sleep(2.0)
+                            normalized = self.normalize_text_for_match(lockout_msg)
+                            if normalized:
+                                self.assistant_sent_message_texts.add(normalized)
+                            msg = await self.client.send_message(sender_id, lockout_msg, parse_mode="html")
+                            self.assistant_sent_message_ids.add(msg.id)
+                        db.add_message(sender_id, 'assistant', lockout_msg, sentiment='neutral', priority='low', language='english', tone='formal')
+                        db.set_setting(f"chitchat_locked_{sender_id}", "1")
+                        db.log_event("WARNING", f"🚫 CHITCHAT SHIELD TRIGGERED: Paused auto-replies for {sender_name} ({sender_id}) due to casual chitchat.")
+                        
+                        await self.broadcast_ws("new_message", {
+                            "telegram_id": sender_id,
+                            "sender": "assistant",
+                            "text": lockout_msg
+                        })
+                        return
             
             # Commit AI scheduled reminder to SQLite and broadcast to UI
             if schedule_rem and isinstance(schedule_rem, dict) and schedule_rem.get("task"):
@@ -949,6 +941,18 @@ class TelegramManager:
                     "draft": reply_draft
                 })
             else:
+                # Simulated human reading delay right before typing/sending the replies
+                if enable_human_delays:
+                    read_delay = random.uniform(1.2, 2.5)
+                    await asyncio.sleep(read_delay)
+                try:
+                    await event.message.mark_read()
+                except Exception:
+                    pass
+                # Cognitive pause before starting typing
+                if enable_human_delays:
+                    await asyncio.sleep(random.uniform(0.4, 0.9))
+
                 await self.send_humanized_replies(
                     sender_id=sender_id,
                     text=reply_draft,
