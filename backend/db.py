@@ -288,20 +288,51 @@ def get_db_connection():
             parsed_successfully = False
             
         if parsed_successfully:
+            # Check for direct supabase hostname
+            host = parsed_params.get("host", "")
+            if host and host.endswith(".supabase.co"):
+                print("="*60)
+                print("CRITICAL WARNING: Direct Supabase hostname (.supabase.co) detected!")
+                print("These hostnames are IPv6-only. Render does not support outbound IPv6.")
+                print("Please configure your DATABASE_URL to use the Supabase Connection Pooler")
+                print("hostname (e.g., aws-0-[region].pooler.supabase.com) from your Supabase dashboard.")
+                print("="*60)
+
+            # Try connecting with sslmode=require
+            params_copy = parsed_params.copy()
+            if "sslmode" not in params_copy and params_copy.get("host") and "localhost" not in params_copy.get("host") and "127.0.0.1" not in params_copy.get("host"):
+                params_copy["sslmode"] = "require"
+            
             try:
-                # Add default sslmode=require if not specified and host is a remote database
-                if "sslmode" not in parsed_params and parsed_params.get("host") and "localhost" not in parsed_params.get("host") and "127.0.0.1" not in parsed_params.get("host"):
-                    parsed_params["sslmode"] = "require"
-                conn = psycopg2.connect(**parsed_params)
+                conn = psycopg2.connect(**params_copy)
             except Exception as conn_err:
-                print(f"PostgreSQL connection via parsed keywords failed: {conn_err}")
-                raise conn_err
+                print(f"PostgreSQL connection with sslmode=require failed: {conn_err}")
+                # Fallback: try connecting with sslmode=prefer
+                try:
+                    print("Retrying connection with sslmode=prefer...")
+                    params_copy["sslmode"] = "prefer"
+                    conn = psycopg2.connect(**params_copy)
+                except Exception as conn_err2:
+                    print(f"PostgreSQL connection with sslmode=prefer failed: {conn_err2}")
+                    # Final fallback: try connecting without forcing sslmode
+                    try:
+                        print("Retrying connection without forcing sslmode parameter...")
+                        params_copy.pop("sslmode", None)
+                        conn = psycopg2.connect(**params_copy)
+                    except Exception as conn_err3:
+                        print("="*60)
+                        print("PostgreSQL connection failed under all SSL modes.")
+                        print(f"Error details: {conn_err3}")
+                        print("="*60)
+                        raise conn_err3
         else:
             # Fallback to direct DSN string connection ONLY if parsing itself failed
             try:
                 conn = psycopg2.connect(db_url)
             except Exception as fallback_err:
+                print("="*60)
                 print(f"PostgreSQL direct fallback connection failed: {fallback_err}")
+                print("="*60)
                 raise fallback_err
                 
         return PostgresConnectionWrapper(conn)

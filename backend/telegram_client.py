@@ -1,6 +1,7 @@
 import asyncio
 import os
 import time
+import random
 from datetime import datetime
 from telethon import TelegramClient, events, functions, types
 from telethon.sessions import StringSession
