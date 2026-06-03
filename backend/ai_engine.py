@@ -455,6 +455,53 @@ def check_fast_path_query(message_text, status_mode="focus", chat_history=None, 
 # RULE-BASED FALLBACK
 # ─────────────────────────────────────────────────────────────
 
+def search_local_knowledge_base(query_text, kb_text):
+    """
+    Scans the local knowledge base setting for sentences/paragraphs matching keywords in the query.
+    Returns the most relevant sentence/paragraph or None.
+    """
+    if not kb_text or not query_text:
+        return None
+        
+    import re
+    # Clean query and extract keywords
+    query_words = set(re.findall(r'\w+', query_text.lower()))
+    # Exclude common English/Hinglish stopwords
+    stopwords = {
+        "is", "the", "are", "a", "an", "and", "or", "in", "on", "at", "to", "for", "with", "by", "of",
+        "bhai", "yaar", "kya", "hai", "ko", "se", "aur", "toh", "dost", "kon", "kab", "kuch", "kam",
+        "h", "koi", "hain", "yaar", "ab", "tum", "tu", "apna", "aapka", "kese", "kaise", "what", "how",
+        "who", "where", "when", "why", "you", "me", "he", "she", "they", "we", "this", "that", "these", "those"
+    }
+    keywords = query_words - stopwords
+    if not keywords:
+        return None
+        
+    # Split KB by line or sentence punctuation
+    sentences = [s.strip() for s in re.split(r'[\n\.\?\!]', kb_text) if s.strip()]
+    
+    best_sentence = None
+    max_matches = 0
+    
+    for sentence in sentences:
+        sentence_words = [w.lower() for w in re.findall(r'\w+', sentence)]
+        matches = 0
+        for kw in keywords:
+            # Check if kw is a substring of any word in the sentence, or vice versa
+            for sw in sentence_words:
+                if kw == sw or (len(kw) >= 4 and len(sw) >= 4 and (kw in sw or sw in kw)):
+                    matches += 1
+                    break
+        if matches > max_matches:
+            max_matches = matches
+            best_sentence = sentence
+            
+    # Require at least 2 matching significant words to avoid weak/false matches
+    if max_matches >= 2:
+        return best_sentence
+    return None
+
+
 def get_rule_based_fallback(message_text, status_mode, chat_history, contact_name=""):
     """
     Smart contextual fallback when all Gemini keys are exhausted.
@@ -467,6 +514,37 @@ def get_rule_based_fallback(message_text, status_mode, chat_history, contact_nam
     fast_path = check_fast_path_query(message_text, status_mode, chat_history, contact_name)
     if fast_path:
         return fast_path[0]
+
+    # 1b. Knowledge Base offline similarity search (offline RAG)
+    knowledge_base = db.get_setting("knowledge_base", "")
+    kb_match = search_local_knowledge_base(message_text, knowledge_base)
+    if kb_match:
+        # Detect if Hinglish
+        hinglish_keywords = ["bhai", "kya", "hai", "kitna", "tu", "kese", "chal", "hal", "deta", "tera", "naam", "ko", "se", "aur", "toh", "dost", "kon", "kab", "kuch", "kam", "yoo", "fee", "setup", "kar", "fir", "puch", "h", "koi", "hain", "yaar", "ab"]
+        is_hinglish = any(w in msg.split() for w in hinglish_keywords) or any(x in msg for x in ["kya ", " hai", "kitne", "bhaiya", "tuu", "karta", "kon ho", "kaun ho"])
+        
+        status_lower = status_mode.lower()
+        casual_status_en = {
+            "sleeping": "sleeping rn",
+            "busy": "locked into a deal rn",
+            "focus": "heads down in deep work rn",
+            "travel": "traveling rn, limited signal",
+            "online": "occupied in another chat rn",
+            "vacation": "on vacation rn",
+        }.get(status_lower, "away rn")
+        casual_status_hi = {
+            "sleeping": "so raha hai abhi",
+            "busy": "ek deal mein busy hai abhi",
+            "focus": "deep work mein hai abhi",
+            "travel": "travel pe hai abhi, signal kam hai",
+            "online": "doosri chat mein hai abhi",
+            "vacation": "vacation pe hai abhi",
+        }.get(status_lower, "bahar hai abhi")
+
+        if is_hinglish:
+            return f"Haan bhai, local details ke according: \"{kb_match}\". CatVos {casual_status_hi} abhi, free hote hi directly coordinate karenge."
+        else:
+            return f"According to our offline details: \"{kb_match}\". CatVos is {casual_status_en} right now, but he will connect with you to discuss directly once he is back."
 
     # 2. Detect if Hinglish
     hinglish_keywords = ["bhai", "kya", "hai", "kitna", "tu", "kese", "chal", "hal", "deta", "tera", "naam", "ko", "se", "aur", "toh", "dost", "kon", "kab", "kuch", "kam", "yoo", "fee", "setup", "kar", "fir", "puch", "h", "koi", "hain", "yaar", "ab"]
