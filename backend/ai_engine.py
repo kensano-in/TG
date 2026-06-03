@@ -738,12 +738,11 @@ JSON ONLY:
     "language": "english/hinglish/hindi/other",
     "tone": "casual/formal/angry/impatient/polite/urgent",
     "suggested_personality": "Casual Friend/Premium Executive/Firm & Direct/Empathetic Support/Warm & Helpful",
+    "is_chitchat": true/false, // Set to true if the message is casual chitchat/banter/conversation/greetings only and NOT about active business deals, middleman services, pricing, stock, website coding, design, editing, or support.
     "draft_reply": "<your reply here — sounds like a real person texted it>",
     "schedule_reminder": {{"task": null, "due_time": null}}
 }}
 """
-
-
 
     try:
         text = generate_content_with_retry(prompt, response_mime_type="application/json")
@@ -764,6 +763,7 @@ JSON ONLY:
                 "language": "hinglish" if is_hinglish else "english",
                 "tone": "casual",
                 "suggested_personality": "Warm & Helpful",
+                "is_chitchat": False,
                 "draft_reply": reply_text,
                 "schedule_reminder": None
             }
@@ -778,6 +778,7 @@ JSON ONLY:
             "language": "english",
             "tone": "casual",
             "suggested_personality": "Warm & Helpful",
+            "is_chitchat": False,
             "draft_reply": fallback,
             "schedule_reminder": None
         }
