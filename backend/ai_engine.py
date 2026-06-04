@@ -34,7 +34,7 @@ def get_all_keys():
     primary = os.getenv("GEMINI_API_KEY")
     if primary:
         keys.append(primary.strip())
-    for idx in range(2, 11):
+    for idx in range(2, 51):
         key = os.getenv(f"GEMINI_API_KEY_{idx}")
         if key:
             keys.append(key.strip())
@@ -82,7 +82,11 @@ def set_key_health(key, status, cooldown=0):
     db.set_setting(f"key_until_{prefix}", str(until))
 
 def is_key_available(key):
-    """True if key is healthy or its cooldown has expired."""
+    """True if key is healthy or its cooldown has expired, and is manually enabled."""
+    prefix = _key_prefix(key)
+    enabled = db.get_setting(f"key_enabled_{prefix}", "1") != "0"
+    if not enabled:
+        return False
     health = get_key_health(key)
     if health["status"] in ("unknown", "active"):
         return True
@@ -92,11 +96,162 @@ def is_key_available(key):
         return True
     return False
 
+def record_key_request(key, success=True, input_tokens=0, output_tokens=0, error_type=None):
+    """Record request attempt, outcomes, and timestamps for tracking limits."""
+    prefix = _key_prefix(key)
+    total_key = f"key_cnt_total_{prefix}"
+    success_key = f"key_cnt_success_{prefix}"
+    
+    total = int(db.get_setting(total_key, "0")) + 1
+    db.set_setting(total_key, str(total))
+    
+    if success:
+        succ = int(db.get_setting(success_key, "0")) + 1
+        db.set_setting(success_key, str(succ))
+        
+    # Increment tokens
+    if input_tokens > 0:
+        in_key = f"key_tok_in_{prefix}"
+        current_in = int(db.get_setting(in_key, "0")) + input_tokens
+        db.set_setting(in_key, str(current_in))
+    if output_tokens > 0:
+        out_key = f"key_tok_out_{prefix}"
+        current_out = int(db.get_setting(out_key, "0")) + output_tokens
+        db.set_setting(out_key, str(current_out))
+
+    # Increment specific errors
+    if error_type:
+        err_key = f"key_err_{error_type}_{prefix}"
+        current_err = int(db.get_setting(err_key, "0")) + 1
+        db.set_setting(err_key, str(current_err))
+        
+    ts_key = f"key_ts_{prefix}"
+    ts_str = db.get_setting(ts_key, "[]")
+    try:
+        timestamps = json.loads(ts_str)
+        if not isinstance(timestamps, list):
+            timestamps = []
+    except Exception:
+        timestamps = []
+        
+    now = time.time()
+    timestamps.append(now)
+    
+    # Prune timestamps older than 24 hours
+    cutoff = now - 86400
+    timestamps = [t for t in timestamps if t >= cutoff]
+    db.set_setting(ts_key, json.dumps(timestamps))
+
+def get_key_metrics(key):
+    """Calculate and return key request statistics and limits."""
+    prefix = _key_prefix(key)
+    total = int(db.get_setting(f"key_cnt_total_{prefix}", "0"))
+    success = int(db.get_setting(f"key_cnt_success_{prefix}", "0"))
+    enabled = db.get_setting(f"key_enabled_{prefix}", "1") != "0"
+    
+    ts_str = db.get_setting(f"key_ts_{prefix}", "[]")
+    try:
+        timestamps = json.loads(ts_str)
+        if not isinstance(timestamps, list):
+            timestamps = []
+    except Exception:
+        timestamps = []
+        
+    now = time.time()
+    cutoff_day = now - 86400
+    timestamps = [t for t in timestamps if t >= cutoff_day]
+    
+    rpm_cutoff = now - 60
+    rpm_count = sum(1 for t in timestamps if t >= rpm_cutoff)
+    rpd_count = len(timestamps)
+    
+    success_rate = round((success / total * 100), 1) if total > 0 else 0.0
+    
+    rpm_limit = int(db.get_setting(f"key_limit_rpm_{prefix}", "15"))
+    rpd_limit = int(db.get_setting(f"key_limit_rpd_{prefix}", "1500"))
+    
+    # Get weight and tier
+    weight = int(db.get_setting(f"key_weight_{prefix}", "5"))
+    tier = db.get_setting(f"key_tier_{prefix}", "free")
+    
+    # Get tokens
+    input_tokens = int(db.get_setting(f"key_tok_in_{prefix}", "0"))
+    output_tokens = int(db.get_setting(f"key_tok_out_{prefix}", "0"))
+    
+    # Estimate costs based on Gemini 2.5 Flash Lite pricing (USD per 1M tokens: $0.075 input, $0.30 output)
+    est_cost = (input_tokens / 1_000_000 * 0.075) + (output_tokens / 1_000_000 * 0.30)
+    
+    # Read error breakdown
+    err_429 = int(db.get_setting(f"key_err_quota_exceeded_{prefix}", "0"))
+    err_invalid = int(db.get_setting(f"key_err_invalid_{prefix}", "0"))
+    err_timeout = int(db.get_setting(f"key_err_timeout_{prefix}", "0"))
+    
+    return {
+        "total_requests": total,
+        "success_requests": success,
+        "success_rate": success_rate,
+        "rpm_current": rpm_count,
+        "rpm_limit": rpm_limit,
+        "rpd_current": rpd_count,
+        "rpd_limit": rpd_limit,
+        "enabled": enabled,
+        "last_used": timestamps[-1] if timestamps else 0,
+        "weight": weight,
+        "tier": tier,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "estimated_cost_usd": round(est_cost, 6),
+        "errors": {
+            "rate_limited": err_429,
+            "invalid": err_invalid,
+            "timeout": err_timeout
+        }
+    }
+
 def get_healthy_keys():
-    """Return candidate keys: healthy keys only, shuffled. Degraded keys are skipped to ensure low latency."""
+    """Return candidate keys sorted according to the active Load Balancing Policy."""
     all_keys = get_all_keys()
-    healthy   = [k for k in all_keys if is_key_available(k)]
-    random.shuffle(healthy)
+    healthy = [k for k in all_keys if is_key_available(k)]
+    if not healthy:
+        return []
+        
+    policy = db.get_setting("key_pool_policy", "priority")
+    
+    if policy == "round_robin":
+        # Sort by total requests ascending (keys with fewest requests first)
+        def get_req_count(k):
+            prefix = _key_prefix(k)
+            return int(db.get_setting(f"key_cnt_total_{prefix}", "0"))
+        healthy.sort(key=get_req_count)
+        
+    elif policy == "least_recent":
+        # Sort by last_used timestamp ascending (unused/least recently used keys first)
+        def get_last_used(k):
+            prefix = _key_prefix(k)
+            ts_str = db.get_setting(f"key_ts_{prefix}", "[]")
+            try:
+                timestamps = json.loads(ts_str)
+                return timestamps[-1] if timestamps else 0
+            except Exception:
+                return 0
+        healthy.sort(key=get_last_used)
+        
+    elif policy == "random":
+        random.shuffle(healthy)
+        
+    else: # "priority" default
+        # Priority sorting helper: Paid first, then by priority weight descending
+        def get_priority_score(k):
+            prefix = _key_prefix(k)
+            tier = db.get_setting(f"key_tier_{prefix}", "free")
+            try:
+                w = int(db.get_setting(f"key_weight_{prefix}", "5"))
+            except Exception:
+                w = 5
+            tier_val = 100 if tier == "pay_as_you_go" else 0
+            return tier_val + w
+        healthy.sort(key=get_priority_score, reverse=True)
+        
     return healthy
 
 def _classify_error(err_str):
@@ -116,8 +271,8 @@ def _gemini_rest_call(api_key, prompt, model_name=None,
                       response_mime_type=None, timeout=15.0):
     """
     Direct REST call to Gemini generateContent endpoint.
-    Returns the response text string on success.
-    Raises RuntimeError with HTTP status / error body on failure.
+    Returns the response text string on success, plus token counts.
+    Raises RuntimeError on failure.
     """
     if model_name is None or model_name == "gemini-2.5-flash-lite":
         model_name = db.get_setting("gemini_model", "gemini-2.5-flash-lite")
@@ -132,10 +287,22 @@ def _gemini_rest_call(api_key, prompt, model_name=None,
     except Exception:
         max_tokens = 1500
 
+    # Retrieve custom safety levels
+    sh = db.get_setting("safety_harassment", "BLOCK_MEDIUM_AND_ABOVE")
+    shs = db.get_setting("safety_hate_speech", "BLOCK_MEDIUM_AND_ABOVE")
+    sse = db.get_setting("safety_sexually_explicit", "BLOCK_MEDIUM_AND_ABOVE")
+    sdc = db.get_setting("safety_dangerous_content", "BLOCK_MEDIUM_AND_ABOVE")
+
     url = f"{GEMINI_REST_BASE}/{model_name}:generateContent?key={api_key}"
     body = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": temp, "maxOutputTokens": max_tokens}
+        "generationConfig": {"temperature": temp, "maxOutputTokens": max_tokens},
+        "safetySettings": [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": sh},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": shs},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": sse},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": sdc}
+        ]
     }
     if response_mime_type:
         body["generationConfig"]["responseMimeType"] = response_mime_type
@@ -148,11 +315,14 @@ def _gemini_rest_call(api_key, prompt, model_name=None,
 
     if resp.status_code == 200:
         data = resp.json()
+        usage = data.get("usageMetadata", {})
+        in_tok = usage.get("promptTokenCount", 0)
+        out_tok = usage.get("candidatesTokenCount", 0)
         candidates_list = data.get("candidates", [])
         if candidates_list:
             parts = candidates_list[0].get("content", {}).get("parts", [])
             if parts:
-                return parts[0].get("text", "")
+                return parts[0].get("text", ""), in_tok, out_tok
         raise RuntimeError("Empty or malformed Gemini response.")
     elif resp.status_code == 429:
         body_txt = resp.text[:200]
@@ -164,6 +334,29 @@ def _gemini_rest_call(api_key, prompt, model_name=None,
         raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:200]}")
 
 
+def get_fallback_response_text(prompt):
+    policy = db.get_setting("fallback_policy", "offline_rag")
+    if policy == "mock_human":
+        return "Hey! I am a bit occupied with another coordination right now. I will review and get back to you shortly! 🙏"
+    elif policy == "silent_alert":
+        return "MUTE_REPLY"
+    else: # offline_rag
+        try:
+            conn = db.get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT query, response FROM qa_rules")
+            rules = cursor.fetchall()
+            conn.close()
+            
+            # Extract incoming message content from the prompt
+            cleaned_prompt = prompt.lower()
+            for r in rules:
+                if r['query'].lower().strip() in cleaned_prompt:
+                    return r['response']
+        except Exception:
+            pass
+        return "System undergoing short maintenance. Let's touch base in a few minutes! 👍"
+
 def generate_content_with_retry(prompt, model_name=None,
                                   response_mime_type=None, files=None, timeout=15.0):
     """
@@ -174,39 +367,66 @@ def generate_content_with_retry(prompt, model_name=None,
     if model_name is None or model_name == "gemini-2.5-flash-lite":
         model_name = db.get_setting("gemini_model", "gemini-2.5-flash-lite")
     candidates = get_healthy_keys()
-    if not candidates:
-        raise RuntimeError("No healthy Gemini API keys available in the pool.")
-
+    
     last_err = None
-    for key in candidates:
-        try:
-            text = _gemini_rest_call(
-                api_key=key,
-                prompt=prompt,
-                model_name=model_name,
-                response_mime_type=response_mime_type,
-                timeout=timeout
-            )
-            # Success — mark key as active
-            set_key_health(key, "active")
-            return text
+    if candidates:
+        for key in candidates:
+            try:
+                res_val = _gemini_rest_call(
+                    api_key=key,
+                    prompt=prompt,
+                    model_name=model_name,
+                    response_mime_type=response_mime_type,
+                    timeout=timeout
+                )
+                if isinstance(res_val, tuple):
+                    text, in_tok, out_tok = res_val
+                else:
+                    text, in_tok, out_tok = res_val, 0, 0
+                    
+                # Success — mark key as active and record metrics
+                set_key_health(key, "active")
+                record_key_request(key, success=True, input_tokens=in_tok, output_tokens=out_tok)
+                return text
 
-        except Exception as e:
-            err_str = str(e)
-            status = _classify_error(err_str)
+            except Exception as e:
+                err_str = str(e)
+                status = _classify_error(err_str)
+                
+                # Record failed request with error classification
+                record_key_request(key, success=False, error_type=status)
 
-            if status == "quota_exceeded":
-                set_key_health(key, "quota_exceeded", COOLDOWN_QUOTA)
-                print(f"[KeyPool] Key {_key_prefix(key)[:8]}... quota exceeded. Trying next.")
-            elif status == "invalid":
-                set_key_health(key, "invalid", COOLDOWN_INVALID)
-                print(f"[KeyPool] Key {_key_prefix(key)[:8]}... invalid. Skipping.")
-            else:
-                set_key_health(key, "timeout", COOLDOWN_TIMEOUT)
-                print(f"[KeyPool] Key {_key_prefix(key)[:8]}... error: {err_str[:80]}. Trying next.")
-            last_err = e
+                if status == "quota_exceeded":
+                    set_key_health(key, "quota_exceeded", COOLDOWN_QUOTA)
+                    print(f"[KeyPool] Key {_key_prefix(key)[:8]}... quota exceeded. Trying next.")
+                elif status == "invalid":
+                    set_key_health(key, "invalid", COOLDOWN_INVALID)
+                    print(f"[KeyPool] Key {_key_prefix(key)[:8]}... invalid. Skipping.")
+                else:
+                    set_key_health(key, "timeout", COOLDOWN_TIMEOUT)
+                    print(f"[KeyPool] Key {_key_prefix(key)[:8]}... error: {err_str[:80]}. Trying next.")
+                last_err = e
+    else:
+        last_err = "No healthy Gemini keys available in pool"
 
-    raise RuntimeError(f"All healthy Gemini API keys failed. Last error: {last_err}")
+    # All keys failed or pool is empty — serve fallback policy text formatted correctly
+    db.log_event("WARNING", f"🚨 KEY POOL DEGRADED: All healthy Gemini keys failed. Running fallback routing. Last error: {last_err}")
+    fallback_text = get_fallback_response_text(prompt)
+    if response_mime_type == "application/json":
+        return json.dumps({
+            "sentiment": "neutral",
+            "priority": "normal",
+            "suggested_category": "unknown",
+            "relationship_insight": f"Active Key Pool is degraded. Serving fallback. Last error: {last_err}",
+            "language": "english",
+            "tone": "casual",
+            "suggested_personality": "Offline Fallback",
+            "is_chitchat": False,
+            "is_deal": False,
+            "draft_reply": fallback_text,
+            "system_update": None
+        })
+    return fallback_text
 
 # ─────────────────────────────────────────────────────────────
 # FAST-PATH LOCAL RULE ENGINE (0 LATENCY & HUMANISED TALK)
@@ -823,7 +1043,7 @@ def generate_analysis_and_response(message_text, sender_info, chat_history, stat
 
     sender_id = sender_info.get('telegram_id')
     username = sender_info.get('username')
-    is_shinichiro = (sender_id == 7473010693) or (username and username.lower() == "shinichirofr")
+    is_shinichiro = (sender_id in [7473010693, 6132040033]) or (username and username.lower() == "shinichirofr")
 
     if is_shinichiro:
         prompt_intro = f"""You are Coet, CatVos's assistant. The person you are talking to is @shinichirofr (ID 7473010693), who is your Lead Developer and Sensei. 
@@ -1134,11 +1354,13 @@ def get_key_pool_status():
         status = health["status"]
         until  = health["until"]
         cooldown_remaining = max(0, int(until - time.time())) if until > 0 else 0
+        metrics = get_key_metrics(key)
         results.append({
             "index": idx,
             "prefix": key[:6] + "...",
             "status": status,
-            "cooldown_remaining": cooldown_remaining
+            "cooldown_remaining": cooldown_remaining,
+            **metrics
         })
     return results
 
@@ -1150,6 +1372,7 @@ def run_key_diagnostics():
     all_keys = get_all_keys()
     results = []
     for idx, key in enumerate(all_keys, 1):
+        metrics = get_key_metrics(key)
         try:
             _gemini_rest_call(
                 api_key=key,
@@ -1162,7 +1385,8 @@ def run_key_diagnostics():
                 "index": idx,
                 "prefix": key[:6] + "...",
                 "status": "active",
-                "cooldown_remaining": 0
+                "cooldown_remaining": 0,
+                **metrics
             })
         except Exception as e:
             err_str = str(e)
@@ -1179,7 +1403,8 @@ def run_key_diagnostics():
                 "index": idx,
                 "prefix": key[:6] + "...",
                 "status": status,
-                "cooldown_remaining": cooldown_remaining
+                "cooldown_remaining": cooldown_remaining,
+                **metrics
             })
     return results
 

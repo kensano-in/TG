@@ -71,6 +71,7 @@ class TelegramManager:
     def __init__(self):
         self.client = None
         self.bot_client = None
+        self.owner_client = None
         # Keep file paths for backward compat (not used for session storage anymore)
         self.session_path = os.path.join(os.path.dirname(__file__), "verlyn_assistant")
         self.bot_session_path = os.path.join(os.path.dirname(__file__), "verlyn_bot_session")
@@ -121,9 +122,26 @@ class TelegramManager:
                 StringSession(bot_session_str), API_ID, API_HASH
             )
 
+        # Dynamic Shinichiro Owner Client (Dual-session routing)
+        owner_session_str = db.get_setting("owner_session_string", "")
+        if owner_session_str and self.owner_client is None:
+            # Owner account credentials from my.telegram.org settings
+            owner_api_id = 24804044
+            owner_api_hash = "38cc69bebcb9888174f781a952cec711"
+            self.owner_client = TelegramClient(
+                StringSession(owner_session_str), owner_api_id, owner_api_hash
+            )
+
         if not self.client.is_connected():
             await self.client.connect()
             db.log_event("INFO", "Telegram client connected to MTProto servers.")
+        
+        if self.owner_client is not None and not self.owner_client.is_connected():
+            try:
+                await self.owner_client.connect()
+                db.log_event("INFO", "Shinichiro Owner client connected to MTProto servers.")
+            except Exception as owner_err:
+                db.log_event("WARNING", f"Failed to connect Shinichiro Owner client: {owner_err}")
         
         # Dynamically fetch me_id to identify owner userbot account
         if not self.me_id:
@@ -136,7 +154,6 @@ class TelegramManager:
                     self._save_session_to_db()
             except Exception as e:
                 db.log_event("WARNING", f"Failed to get_me() from Telegram client: {e}")
-
 
         if BOT_TOKEN:
             try:
@@ -197,6 +214,54 @@ class TelegramManager:
                     return {"status": "password_required"}
         except Exception as e:
             db.log_event("ERROR", f"Sign in failed: {str(e)}")
+            return {"status": "error", "message": str(e)}
+
+    async def owner_send_code(self, phone: str, api_id: int = 24804044, api_hash: str = "38cc69bebcb9888174f781a952cec711"):
+        """Send OTP to the owner's personal Telegram account (Shinichiro / @Shinichirofr)."""
+        try:
+            # Always create a fresh owner_client for the login flow
+            self.owner_client = TelegramClient(StringSession(), api_id, api_hash)
+            await self.owner_client.connect()
+            result = await self.owner_client.send_code_request(phone)
+            self._owner_phone = phone
+            self._owner_phone_code_hash = result.phone_code_hash
+            self._owner_api_id = api_id
+            self._owner_api_hash = api_hash
+            db.log_event("INFO", f"Owner verification code sent to {phone}")
+            return {"status": "code_sent"}
+        except Exception as e:
+            db.log_event("ERROR", f"Failed to send owner code: {str(e)}")
+            return {"status": "error", "message": str(e)}
+
+    async def owner_login(self, code: str, password: str = None):
+        """Verify OTP and save the owner's session string to database."""
+        try:
+            if not self.owner_client:
+                return {"status": "error", "message": "No owner login session found. Please send code first."}
+            if not hasattr(self, '_owner_phone_code_hash') or not self._owner_phone_code_hash:
+                return {"status": "error", "message": "No code request hash found. Please send code first."}
+
+            try:
+                user = await self.owner_client.sign_in(
+                    self._owner_phone, code, phone_code_hash=self._owner_phone_code_hash
+                )
+                session_str = self.owner_client.session.save()
+                db.set_setting("owner_session_string", session_str)
+                db.set_setting("owner_phone", self._owner_phone)
+                db.log_event("INFO", f"Owner account signed in: @{user.username} (ID: {user.id})")
+                return {"status": "success", "user": user.username or user.phone, "id": user.id}
+            except SessionPasswordNeededError:
+                if password:
+                    user = await self.owner_client.sign_in(password=password)
+                    session_str = self.owner_client.session.save()
+                    db.set_setting("owner_session_string", session_str)
+                    db.set_setting("owner_phone", self._owner_phone)
+                    db.log_event("INFO", f"Owner account signed in with 2FA: @{user.username} (ID: {user.id})")
+                    return {"status": "success", "user": user.username or user.phone, "id": user.id}
+                else:
+                    return {"status": "password_required"}
+        except Exception as e:
+            db.log_event("ERROR", f"Owner sign in failed: {str(e)}")
             return {"status": "error", "message": str(e)}
 
 
@@ -293,7 +358,7 @@ class TelegramManager:
         if hasattr(self, "me_id") and self.me_id and sender_id == self.me_id:
             return True
         # Raw ID 7473010693 is configured as second admin / owner (Sensei)
-        if sender_id == 7473010693:
+        if sender_id in [7473010693, 6132040033]:
             return True
         return False
 
@@ -541,6 +606,7 @@ class TelegramManager:
             loop = asyncio.get_event_loop()
             loop.create_task(self.periodic_style_rebuilder())
             loop.create_task(self.periodic_broadcast_scheduler())
+            loop.create_task(self.periodic_session_guardian())  # ← Keep-alive guardian
         except Exception as e:
             db.log_event("WARNING", f"Failed to start background loops: {e}")
         
@@ -665,7 +731,7 @@ class TelegramManager:
             sender_name = f"{sender.first_name or ''} {sender.last_name or ''}".strip()
             username = sender.username or ""
             text = event.text or ""
-            is_shinichiro = (sender_id == 7473010693) or (username and username.lower() == "shinichirofr")
+            is_shinichiro = (sender_id in [7473010693, 6132040033]) or (username and username.lower() == "shinichirofr")
             
             # 1. Check if CAPTCHA answer is pending
             if not event.is_private:
@@ -937,7 +1003,7 @@ class TelegramManager:
                 approval_mode = True
 
             # Check maximum reply limit per contact session (5 replies), except for shinichirofr
-            is_shinichiro = (sender_id == 7473010693) or (username and username.lower() == "shinichirofr")
+            is_shinichiro = (sender_id in [7473010693, 6132040033]) or (username and username.lower() == "shinichirofr")
             session_limit_setting = db.get_setting("session_response_limit", "5")
             try:
                 reply_limit = int(session_limit_setting)
@@ -1130,7 +1196,7 @@ class TelegramManager:
                             text, current_status, history, contact.get('first_name', '')
                         )
                     
-                    is_shinichiro = (sender_id == 7473010693) or (username and username.lower() == "shinichirofr")
+                    is_shinichiro = (sender_id in [7473010693, 6132040033]) or (username and username.lower() == "shinichirofr")
                     if is_shinichiro:
                         fallback_reply = f"Yes Sensei! All my Gemini API keys are currently offline, so I am running on local backup protocols. Main aapki feedback and instruction offline cache me save kar raha hu, Sensei."
 
@@ -1170,7 +1236,7 @@ class TelegramManager:
 
             # Handle Lead Developer / Sensei System Updates
             system_update = analysis.get("system_update")
-            is_shinichiro = (sender_id == 7473010693) or (username and username.lower() == "shinichirofr")
+            is_shinichiro = (sender_id in [7473010693, 6132040033]) or (username and username.lower() == "shinichirofr")
             if system_update and is_shinichiro:
                 await self.apply_system_update(system_update, sender_id, username, sender_name)
             
@@ -1307,6 +1373,10 @@ class TelegramManager:
             new_is_vip = new_contact_cat in ['vip', 'client', 'business_partner']
             if force_draft_vips and new_is_vip:
                 approval_mode = True
+
+            if reply_draft == "MUTE_REPLY":
+                db.log_event("INFO", f"🔇 MUTE_REPLY policy intercepted. Skipping auto-response to {sender_name}.")
+                return
 
             if approval_mode:
                 db.set_setting(f"draft_{sender_id}", reply_draft)
@@ -1689,7 +1759,7 @@ class TelegramManager:
                 
                 db.log_event("INFO", f"🤖 Bot received message from {sender_name} ({sender_id}): {text[:50]}")
                 
-                is_shinichiro = (sender_id == 7473010693) or (username and username.lower() == "shinichirofr")
+                is_shinichiro = (sender_id in [7473010693, 6132040033]) or (username and username.lower() == "shinichirofr")
                 
                 # Check for direct Sensei command matching the offline regex patterns
                 if is_shinichiro:
@@ -3284,7 +3354,17 @@ class TelegramManager:
         if is_bot:
             await self.bot_client.send_message(event.chat_id, result, parse_mode="html")
         else:
-            await self.client.send_message(event.chat_id, result, parse_mode="html")
+            try:
+                # event.respond guarantees utilizing the incoming message's peer structure directly
+                await event.respond(result, parse_mode="html")
+            except Exception as resp_err:
+                db.log_event("WARNING", f"event.respond failed: {resp_err}. Falling back to send_message with dialog hydration.")
+                try:
+                    await self.client.get_dialogs()
+                    entity = await self.client.get_entity(event.chat_id)
+                    await self.client.send_message(entity, result, parse_mode="html")
+                except Exception as final_err:
+                    db.log_event("ERROR", f"Failed to send command output: {final_err}")
 
     async def trigger_sys_restart(self):
         await asyncio.sleep(2.0)
@@ -3299,6 +3379,266 @@ class TelegramManager:
         is_locked = db.get_setting("emergency_lock", "0") == "1"
         if is_locked and cmd not in ["unlock", "panic"]:
             return "⚠️ <b>System Lockdown Active</b>. All commands are currently disabled."
+
+        if cmd == "close":
+            target = args.strip() if args else None
+            is_remote = False
+            username_target = None
+            resolved_entity = None
+            
+            # Check if we should route the analysis lookup through the owner's (Shinichiro's) client
+            use_owner_client = False
+            if self.owner_client is not None and await self.owner_client.is_user_authorized():
+                use_owner_client = True
+                db.log_event("INFO", "Closing deal routing: using owner_client (Shinichiro) to fetch chat history.")
+                
+            chat_log = ""
+            if use_owner_client:
+                # 1. Resolve contact entity directly from Shinichiro's account context
+                if target:
+                    try:
+                        target_clean = target.replace("@", "").strip()
+                        if target_clean.isdigit():
+                            resolved_entity = await self.owner_client.get_entity(int(target_clean))
+                        else:
+                            resolved_entity = await self.owner_client.get_entity(target)
+                        contact_id = resolved_entity.id
+                        if hasattr(resolved_entity, 'username') and resolved_entity.username:
+                            username_target = f"@{resolved_entity.username}"
+                        is_remote = True
+                    except Exception as lookup_err:
+                        return f"❌ <b>Error:</b> Could not resolve target contact identifier '<code>{target}</code>' from Shinichiro's account: {lookup_err}"
+                else:
+                    contact_id = event.chat_id
+                
+                # 2. Fetch last 150 messages directly from Telegram servers via Shinichiro's account
+                try:
+                    history_msgs = await self.owner_client.get_messages(contact_id, limit=150)
+                    from datetime import datetime, timedelta, timezone
+                    limit_time = datetime.now(timezone.utc) - timedelta(hours=48)
+                    
+                    recent_msgs = []
+                    for m in history_msgs:
+                        # Fetch UTC naive or aware comparison safely
+                        m_date = m.date if m.date.tzinfo else m.date.replace(tzinfo=timezone.utc)
+                        if m_date >= limit_time:
+                            recent_msgs.append(m)
+                            
+                    if not recent_msgs:
+                        return f"⚠️ <b>Error:</b> No chat logs found in the last 48 hours for contact ID <code>{contact_id}</code> on Shinichiro's account."
+                        
+                    log_lines = []
+                    for m in recent_msgs:
+                        role = "Owner (Shinichiro)" if m.out else "Buyer/Client"
+                        t_str = m.date.strftime("%Y-%m-%dT%H:%M:%S") + "Z"
+                        log_lines.append(f"[{t_str}] {role}: {m.text or ''}")
+                    chat_log = "\n".join(log_lines)
+                except Exception as hist_err:
+                    return f"❌ <b>Error:</b> Failed to fetch chat history from Shinichiro's account: {hist_err}"
+            else:
+                # Fallback to local CatVos database history
+                if target:
+                    target_clean = target.replace("@", "").strip()
+                    try:
+                        if target_clean.isdigit():
+                            contact_id = int(target_clean)
+                        else:
+                            resolved_entity = await self.client.get_entity(target)
+                            contact_id = resolved_entity.id
+                            if hasattr(resolved_entity, 'username') and resolved_entity.username:
+                                username_target = f"@{resolved_entity.username}"
+                        is_remote = True
+                    except Exception as lookup_err:
+                        db.log_event("WARNING", f"Telegram server lookup for '{target}' failed: {lookup_err}. Checking database.")
+                        try:
+                            conn = db.get_db_connection()
+                            cursor = conn.cursor()
+                            if target_clean.isdigit():
+                                cursor.execute("SELECT telegram_id, username FROM contacts WHERE telegram_id = ?", (int(target_clean),))
+                            else:
+                                cursor.execute("SELECT telegram_id, username FROM contacts WHERE LOWER(username) = ?", (target_clean.lower(),))
+                            row = cursor.fetchone()
+                            conn.close()
+                            
+                            if row:
+                                contact_id = row['telegram_id']
+                                if row['username']:
+                                    username_target = f"@{row['username'].replace('@', '')}"
+                                is_remote = True
+                            else:
+                                return f"❌ <b>Error:</b> Could not resolve target contact identifier '<code>{target}</code>' on Telegram or database."
+                        except Exception as e:
+                            return f"❌ <b>Database Error:</b> {str(e)}"
+                else:
+                    contact_id = event.chat_id
+                    
+                history = db.get_chat_history(contact_id, limit=150)
+                if not history:
+                    return f"⚠️ <b>Error:</b> No chat logs found in database for contact ID <code>{contact_id}</code>."
+                    
+                from datetime import datetime, timedelta
+                limit_time = datetime.utcnow() - timedelta(hours=48)
+                
+                recent_msgs = []
+                for msg in history:
+                    try:
+                        t_str = msg['timestamp'].replace('Z', '')
+                        if '+' in t_str:
+                            t_str = t_str.split('+')[0]
+                        msg_time = datetime.fromisoformat(t_str)
+                        if msg_time >= limit_time:
+                            recent_msgs.append(msg)
+                    except Exception:
+                        recent_msgs.append(msg)
+                        
+                if not recent_msgs:
+                    return f"⚠️ <b>Error:</b> No chat activity registered in the last 48 hours for contact ID <code>{contact_id}</code>."
+                    
+                log_lines = []
+                for msg in recent_msgs:
+                    role = "Owner (CatVos)" if msg['sender'] == 'owner' else ("Assistant (Coet)" if msg['sender'] == 'assistant' else "Buyer/Client")
+                    log_lines.append(f"[{msg['timestamp']}] {role}: {msg['text']}")
+                chat_log = "\n".join(log_lines)
+            
+            # ─── Compute invoice metadata ────────────────────────────────────
+            from datetime import datetime, timezone, timedelta as _td
+            import random, string, re as _re
+
+            _now = datetime.now(timezone.utc)
+            _ist_offset = timezone(_td(hours=5, minutes=30))
+            _now_ist = _now.astimezone(_ist_offset)
+            close_ts_ist = _now_ist.strftime("%d %b %Y, %I:%M %p IST")
+            close_ts_utc = _now.strftime("%d %b %Y, %I:%M %p UTC")
+
+            # Deal duration from first→last message timestamp
+            deal_duration_str = "N/A"
+            try:
+                _all_lines = chat_log.strip().split("\n")
+                def _parse_ts(line):
+                    m = _re.match(r'\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})', line)
+                    return datetime.fromisoformat(m.group(1)) if m else None
+                _ts0 = _parse_ts(_all_lines[0])
+                _ts1 = _parse_ts(_all_lines[-1])
+                if _ts0 and _ts1:
+                    _delta = abs(int((_ts1 - _ts0).total_seconds() // 60))
+                    if _delta < 60:
+                        deal_duration_str = f"{_delta} min"
+                    elif _delta < 1440:
+                        deal_duration_str = f"{_delta//60}h {_delta%60}m"
+                    else:
+                        deal_duration_str = f"{_delta//1440}d {(_delta%1440)//60}h"
+            except Exception:
+                pass
+
+            # Unique order ID
+            _suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+            order_id = f"SHI{_now.strftime('%d%m%y')}{_suffix}"
+
+            # Customisable brand vars (set via /setbrand_name etc.)
+            brand_name     = db.get_setting("var_brand_name",     "Shinken")
+            seller_handle  = db.get_setting("var_seller_username", "@Shinichirofr")
+            support_handle = db.get_setting("var_support_handle",  "@coetbot")
+            footer_tagline = db.get_setting("var_footer_tagline",  "Trusted · Fast · Reliable")
+
+            analysis_prompt = f"""You are the elite Deal Analyzer engine of {brand_name}, a premium digital commerce operation.
+
+Analyze the chat log below and extract every transaction detail with full precision.
+
+Chat Log:
+\"\"\"
+{chat_log}
+\"\"\"
+
+Extract:
+1. Product / Service name + brief description
+2. Exact Price with currency (₹ INR / $ USD / etc.)
+3. Quantity ordered
+4. Payment Method (UPI, Crypto, PayPal, Bank, etc.)
+5. Payment Status (Received ✅ / Pending ⏳ / Partial ⚠️)
+6. Payment Reference / UTR / Transaction ID (if mentioned)
+7. Delivery details / Account credentials / Fulfillment info
+8. Special instructions, notes, or warranty terms
+9. Client Telegram username or ID
+10. Buyer type: first-time or repeat customer (infer from tone/context)
+
+Pre-computed metadata — embed these values EXACTLY as given:
+• Order ID      : {order_id}
+• Closed At     : {close_ts_ist}  ({close_ts_utc})
+• Deal Duration : {deal_duration_str}
+• Seller        : {seller_handle}
+• Support       : {support_handle}
+• Brand         : {brand_name}
+
+OUTPUT FORMAT — Generate the invoice using Telegram HTML tags ONLY (no markdown, no **, no ##):
+• <b>text</b>         → bold section headers and field labels
+• <i>text</i>         → italic for sub-info, notes, disclaimers
+• <code>text</code>   → monospace for IDs, credentials, amounts, UPI IDs, hashes
+• <blockquote>text</blockquote> → highlighted payment confirmation block
+
+REQUIRED SECTIONS IN THIS EXACT ORDER:
+1. ╔══ Brand Header ══╗  (brand name + tagline, premium style)
+2. ━━━━ ORDER INFORMATION ━━━━  (Order ID, closed timestamp, deal duration, status badge)
+3. ━━━━ CLIENT PROFILE ━━━━  (username/ID, buyer type, total orders if inferable)
+4. ━━━━ TRANSACTION DETAILS ━━━━  (product, description, price, qty, payment method, ref ID)
+5. ━━━━ PAYMENT CONFIRMATION ━━━━  (blockquote — amount, method, status, UTR/ref)
+6. ━━━━ DELIVERY / FULFILLMENT ━━━━  (all credentials or delivery info in <code> blocks)
+7. ━━━━ NOTES & WARRANTY ━━━━  (special instructions, validity, disclaimer)
+8. ━━━━ SELLER CONTACT ━━━━  (seller handle, support channel, response time)
+9. ━━━━ POWERED BY ━━━━  (@coetbot CTA + footer tagline)
+
+Rules:
+• Output ONLY the final Telegram-ready HTML text. Zero preamble, zero code fences.
+• Every section must be present even if some fields are "Not specified"
+• Make every line feel like a Fortune-500 company issued it — premium, concise, powerful
+• Emoji usage: meaningful and purposeful, not decorative spam
+"""
+            try:
+                deal_summary = await asyncio.to_thread(
+                    ai_engine.generate_content_with_retry,
+                    analysis_prompt
+                )
+
+                # Strip accidental markdown fences
+                deal_summary = deal_summary.strip()
+                if deal_summary.startswith("```"):
+                    deal_summary = "\n".join(
+                        l for l in deal_summary.split("\n") if not l.startswith("```")
+                    ).strip()
+
+                # Always guarantee @coetbot footer is present
+                coetbot_footer = (
+                    f"\n\n━━━━━━━━━━━━━━━━━━━━━━━"
+                    f"\n🤖 <b>Powered by Coet Automation</b>"
+                    f"\n<i>AI-driven business intelligence &amp; deal management</i>"
+                    f"\n📨 Queries &amp; Support → <b>@coetbot</b>"
+                    f"\n<i>{footer_tagline}</i>"
+                )
+                if "@coetbot" not in deal_summary:
+                    deal_summary += coetbot_footer
+
+                if is_remote:
+                    send_target = resolved_entity if resolved_entity else (username_target if username_target else contact_id)
+                    try:
+                        await self.client.send_message(send_target, deal_summary, parse_mode="html")
+                    except Exception:
+                        try:
+                            await self.client.get_dialogs()
+                            resolved_entity = await self.client.get_entity(contact_id)
+                            await self.client.send_message(resolved_entity, deal_summary, parse_mode="html")
+                        except Exception as entity_err:
+                            raise RuntimeError(f"Entity resolution failed: {entity_err}.")
+
+                    db.log_event("INFO", f"Deal closed. Order {order_id} sent to {contact_id}.")
+                    return (
+                        f"✅ <b>Deal Closed — {order_id}</b>\n"
+                        f"Invoice dispatched from @CatVos → <code>{contact_id}</code>\n"
+                        f"<i>Duration: {deal_duration_str} | Closed: {close_ts_ist}</i>"
+                    )
+                else:
+                    return deal_summary
+
+            except Exception as e:
+                return f"❌ <b>Deal Extraction Failed:</b> {str(e)}"
 
         # LEVEL 12 & 15: Set dynamic variables
         if cmd.startswith("set") and len(cmd) > 3:
@@ -3545,7 +3885,10 @@ class TelegramManager:
             # Show a typing indicator
             await event.respond("⏳ <i>Gemini AI is processing context...</i>")
             try:
-                res, _ = ai_engine.generate_content_with_retry(prompts.get(cmd))
+                res = await asyncio.to_thread(
+                    ai_engine.generate_content_with_retry,
+                    prompts.get(cmd)
+                )
                 return f"🧠 <b>AI ASSISTANT {cmd.upper()} RESULT:</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n\n{res}"
             except Exception as e:
                 return f"❌ <b>Gemini Error:</b> {str(e)}"
@@ -3970,7 +4313,7 @@ class TelegramManager:
             return
             
         # Check maximum reply limit per contact session
-        is_shinichiro = (sender_id == 7473010693) or (username and username.lower() == "shinichirofr")
+        is_shinichiro = (sender_id in [7473010693, 6132040033]) or (username and username.lower() == "shinichirofr")
         session_limit_setting = db.get_setting("session_response_limit", "5")
         try:
             reply_limit = int(session_limit_setting)
@@ -4081,7 +4424,7 @@ class TelegramManager:
                 
             # Handle Lead Developer / Sensei System Updates
             system_update = analysis.get("system_update")
-            is_shinichiro = (sender_id == 7473010693) or (username and username.lower() == "shinichirofr")
+            is_shinichiro = (sender_id in [7473010693, 6132040033]) or (username and username.lower() == "shinichirofr")
             if system_update and is_shinichiro:
                 await self.apply_system_update(system_update, sender_id, username, sender_name)
 
@@ -4136,6 +4479,60 @@ class TelegramManager:
                     f"<i>They have contacted you through the bot. Open the manager dashboard.</i>"
                 )
                 self.send_bot_notification(alert_text)
+
+    async def periodic_session_guardian(self):
+        """Heartbeat guardian — runs every 5 min to ensure both @CatVos and @Shinichirofr
+        sessions stay alive. Auto-reconnects from saved DB session strings if either drops."""
+        db.log_event("INFO", "Session Guardian started — watching @CatVos and @Shinichirofr sessions.")
+        OWNER_API_ID   = 24804044
+        OWNER_API_HASH = "38cc69bebcb9888174f781a952cec711"
+        while True:
+            await asyncio.sleep(300)  # check every 5 minutes
+            try:
+                # ─── 1. @CatVos (main userbot) health check ───────────────────────
+                try:
+                    if self.client is None or not self.client.is_connected():
+                        db.log_event("WARNING", "Guardian: @CatVos client disconnected — reconnecting...")
+                        session_str = db.get_setting("telegram_session_string", "")
+                        self.client = TelegramClient(StringSession(session_str), API_ID, API_HASH)
+                        await self.client.connect()
+                        db.log_event("INFO", "Guardian: @CatVos reconnected successfully.")
+                    # Verify still authorized
+                    if not await self.client.is_user_authorized():
+                        db.log_event("ERROR", "Guardian: @CatVos is connected but NOT authorized — session may be revoked!")
+                    else:
+                        # Refresh session string to DB in case Telethon refreshed the auth key
+                        fresh = self.client.session.save()
+                        if fresh:
+                            db.set_setting("telegram_session_string", fresh)
+                except Exception as e:
+                    db.log_event("ERROR", f"Guardian: @CatVos check failed: {e}")
+
+                # ─── 2. @Shinichirofr (owner) health check ────────────────────────
+                try:
+                    owner_session_str = db.get_setting("owner_session_string", "")
+                    if not owner_session_str:
+                        continue  # not linked yet, skip
+                    if self.owner_client is None or not self.owner_client.is_connected():
+                        db.log_event("WARNING", "Guardian: @Shinichirofr owner client disconnected — reconnecting...")
+                        self.owner_client = TelegramClient(
+                            StringSession(owner_session_str), OWNER_API_ID, OWNER_API_HASH
+                        )
+                        await self.owner_client.connect()
+                        db.log_event("INFO", "Guardian: @Shinichirofr reconnected successfully.")
+                    # Verify still authorized
+                    if not await self.owner_client.is_user_authorized():
+                        db.log_event("ERROR", "Guardian: @Shinichirofr is connected but NOT authorized — session may be revoked!")
+                    else:
+                        # Refresh session string to DB
+                        fresh = self.owner_client.session.save()
+                        if fresh:
+                            db.set_setting("owner_session_string", fresh)
+                except Exception as e:
+                    db.log_event("ERROR", f"Guardian: @Shinichirofr check failed: {e}")
+
+            except Exception as e:
+                db.log_event("ERROR", f"Session Guardian outer exception: {e}")
 
     async def periodic_style_rebuilder(self):
         """Periodically rebuild the owner style profile every 2 hours if new messages are detected."""
@@ -4528,13 +4925,15 @@ class TelegramManager:
                 if await self.is_authorized():
                     self.start_listener()
                     db.log_event("INFO", "Telegram clients connected and event listeners registered.")
-                    if BOT_TOKEN:
-                        await asyncio.gather(
-                            self.client.run_until_disconnected(),
-                            self.bot_client.run_until_disconnected()
-                        )
-                    else:
-                        await self.client.run_until_disconnected()
+                    # Build gather list — always include main userbot
+                    gather_tasks = [self.client.run_until_disconnected()]
+                    if BOT_TOKEN and self.bot_client is not None:
+                        gather_tasks.append(self.bot_client.run_until_disconnected())
+                    # Include owner client if it exists and is connected
+                    if self.owner_client is not None and self.owner_client.is_connected():
+                        gather_tasks.append(self.owner_client.run_until_disconnected())
+                        db.log_event("INFO", "Owner (@Shinichirofr) client included in main run loop.")
+                    await asyncio.gather(*gather_tasks)
                     db.log_event("WARNING", "Telegram clients disconnected from event loop. Re-initializing...")
                 else:
                     db.log_event("WARNING", "Telegram clients unauthorized. Retrying connection in 10s...")

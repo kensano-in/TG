@@ -67,6 +67,17 @@ async def startup():
 
     asyncio.create_task(connect_and_start_bg())
 
+    # Background self-healing key diagnostics
+    async def auto_heal_keys_bg():
+        db.log_event("INFO", "Self-healing background task for key rotation pool started.")
+        while True:
+            await asyncio.sleep(300)
+            try:
+                await asyncio.to_thread(ai_engine.run_key_diagnostics)
+            except Exception as e:
+                db.log_event("ERROR", f"Error in background key self-healing: {e}")
+    asyncio.create_task(auto_heal_keys_bg())
+
 # Request Models
 class LoginCredentials(BaseModel):
     code: str
@@ -199,6 +210,26 @@ class KeyDeleteRequest(BaseModel):
 class KeyTestSpecificRequest(BaseModel):
     key: str
 
+class KeyToggleRequest(BaseModel):
+    key: str
+    enabled: bool
+
+class KeyUpdateLimitsRequest(BaseModel):
+    key: str
+    rpm_limit: int
+    rpd_limit: int
+
+class KeyResetRequest(BaseModel):
+    key: str
+
+class KeyUpdateTierRequest(BaseModel):
+    key: str
+    tier: str
+
+class KeyUpdateWeightRequest(BaseModel):
+    key: str
+    weight: int
+
 class QARuleRequest(BaseModel):
     query: str
     response: str
@@ -284,6 +315,60 @@ async def login(creds: LoginCredentials):
         raise HTTPException(status_code=400, detail=res["message"])
     return res
 
+# ─── Owner (Second) Account Auth ───────────────────────────────────────────
+class OwnerSendCodeRequest(BaseModel):
+    phone: str
+    api_id: Optional[int] = 24804044
+    api_hash: Optional[str] = "38cc69bebcb9888174f781a952cec711"
+
+class OwnerLoginRequest(BaseModel):
+    code: str
+    password: Optional[str] = None
+
+@app.post("/api/auth/owner/send-code")
+async def owner_send_code(payload: OwnerSendCodeRequest, token: dict = Depends(verify_token)):
+    """Send OTP to owner's personal Telegram account (Shinichiro)."""
+    res = await tg_manager.owner_send_code(payload.phone, payload.api_id, payload.api_hash)
+    if res["status"] == "error":
+        raise HTTPException(status_code=400, detail=res["message"])
+    return res
+
+@app.post("/api/auth/owner/login")
+async def owner_login(creds: OwnerLoginRequest, token: dict = Depends(verify_token)):
+    """Verify OTP and save owner session string."""
+    res = await tg_manager.owner_login(creds.code, creds.password)
+    if res["status"] == "error":
+        raise HTTPException(status_code=400, detail=res["message"])
+    return res
+
+@app.get("/api/auth/owner/status")
+async def owner_status(token: dict = Depends(verify_token)):
+    """Check if owner account is connected and authorized."""
+    owner_session = db.get_setting("owner_session_string", "")
+    if not owner_session:
+        return {"connected": False, "username": None, "id": None}
+    try:
+        if tg_manager.owner_client is not None and await tg_manager.owner_client.is_user_authorized():
+            me = await tg_manager.owner_client.get_me()
+            return {"connected": True, "username": me.username, "id": me.id, "name": me.first_name}
+        return {"connected": False, "username": None, "id": None}
+    except Exception as e:
+        return {"connected": False, "username": None, "id": None, "error": str(e)}
+
+@app.post("/api/auth/owner/disconnect")
+async def owner_disconnect(token: dict = Depends(verify_token)):
+    """Remove owner session from database."""
+    db.set_setting("owner_session_string", "")
+    db.set_setting("owner_phone", "")
+    if tg_manager.owner_client:
+        try:
+            await tg_manager.owner_client.disconnect()
+        except Exception:
+            pass
+        tg_manager.owner_client = None
+    db.log_event("INFO", "Owner (Shinichiro) account disconnected.")
+    return {"status": "success"}
+
 @app.get("/api/contacts")
 async def get_contacts(token: dict = Depends(verify_token)):
     return db.get_all_contacts()
@@ -345,6 +430,14 @@ async def get_settings(token: dict = Depends(verify_token)):
         "gemini_model": db.get_setting("gemini_model", "gemini-2.5-flash-lite"),
         "gemini_temperature": db.get_setting("gemini_temperature", "0.85"),
         "gemini_max_tokens": db.get_setting("gemini_max_tokens", "1500"),
+        "key_pool_policy": db.get_setting("key_pool_policy", "priority"),
+        "safety_harassment": db.get_setting("safety_harassment", "BLOCK_MEDIUM_AND_ABOVE"),
+        "safety_hate_speech": db.get_setting("safety_hate_speech", "BLOCK_MEDIUM_AND_ABOVE"),
+        "safety_sexually_explicit": db.get_setting("safety_sexually_explicit", "BLOCK_MEDIUM_AND_ABOVE"),
+        "safety_dangerous_content": db.get_setting("safety_dangerous_content", "BLOCK_MEDIUM_AND_ABOVE"),
+        "fallback_policy": db.get_setting("fallback_policy", "offline_rag"),
+        "language_preference": db.get_setting("language_preference", "auto"),
+        "emoji_density": db.get_setting("emoji_density", "medium"),
         "status_desc_online": db.get_setting("status_desc_online", "occupied in another chat rn"),
         "status_desc_busy": db.get_setting("status_desc_busy", "locked in a deal rn"),
         "status_desc_focus": db.get_setting("status_desc_focus", "heads down in deep work rn"),
@@ -691,6 +784,7 @@ async def list_gemini_keys(token: dict = Depends(verify_token)):
 
     for idx, key in enumerate(env_keys, 1):
         health = ai_engine.get_key_health(key)
+        metrics = ai_engine.get_key_metrics(key)
         all_records.append({
             "key_prefix": key[:8] + "...",
             "full_key_masked": mask_key(key),
@@ -698,7 +792,8 @@ async def list_gemini_keys(token: dict = Depends(verify_token)):
             "source": "env",
             "status": health["status"],
             "cooldown_remaining": max(0, int(health["until"] - time.time())) if health["until"] > 0 else 0,
-            "raw_key": key
+            "raw_key": key,
+            **metrics
         })
     for idx, item in enumerate(db_keys, 1):
         key = item.get("key", "").strip()
@@ -706,6 +801,7 @@ async def list_gemini_keys(token: dict = Depends(verify_token)):
         if not key:
             continue
         health = ai_engine.get_key_health(key)
+        metrics = ai_engine.get_key_metrics(key)
         all_records.append({
             "key_prefix": key[:8] + "...",
             "full_key_masked": mask_key(key),
@@ -713,7 +809,8 @@ async def list_gemini_keys(token: dict = Depends(verify_token)):
             "source": "database",
             "status": health["status"],
             "cooldown_remaining": max(0, int(health["until"] - time.time())) if health["until"] > 0 else 0,
-            "raw_key": key
+            "raw_key": key,
+            **metrics
         })
     return all_records
 
@@ -789,6 +886,55 @@ async def test_single_key(payload: KeyTestSpecificRequest, token: dict = Depends
         else:
             ai_engine.set_key_health(key, "timeout", ai_engine.COOLDOWN_TIMEOUT)
         return {"status": status, "message": err_str}
+
+@app.post("/api/admin/keys/toggle")
+async def toggle_gemini_key(payload: KeyToggleRequest, token: dict = Depends(verify_token)):
+    key = payload.key.strip()
+    prefix = ai_engine._key_prefix(key)
+    val_str = "1" if payload.enabled else "0"
+    db.set_setting(f"key_enabled_{prefix}", val_str)
+    db.log_event("INFO", f"Key prefix {prefix} manual enable toggled to {payload.enabled}")
+    return {"status": "success", "enabled": payload.enabled}
+
+@app.post("/api/admin/keys/update-limits")
+async def update_key_limits(payload: KeyUpdateLimitsRequest, token: dict = Depends(verify_token)):
+    key = payload.key.strip()
+    prefix = ai_engine._key_prefix(key)
+    db.set_setting(f"key_limit_rpm_{prefix}", str(payload.rpm_limit))
+    db.set_setting(f"key_limit_rpd_{prefix}", str(payload.rpd_limit))
+    db.log_event("INFO", f"Updated limit for key prefix {prefix}: RPM={payload.rpm_limit}, RPD={payload.rpd_limit}")
+    return {"status": "success"}
+
+@app.post("/api/admin/keys/reset-metrics")
+async def reset_key_metrics(payload: KeyResetRequest, token: dict = Depends(verify_token)):
+    key = payload.key.strip()
+    prefix = ai_engine._key_prefix(key)
+    db.set_setting(f"key_cnt_total_{prefix}", "0")
+    db.set_setting(f"key_cnt_success_{prefix}", "0")
+    db.set_setting(f"key_ts_{prefix}", "[]")
+    db.set_setting(f"key_tok_in_{prefix}", "0")
+    db.set_setting(f"key_tok_out_{prefix}", "0")
+    db.set_setting(f"key_err_quota_exceeded_{prefix}", "0")
+    db.set_setting(f"key_err_invalid_{prefix}", "0")
+    db.set_setting(f"key_err_timeout_{prefix}", "0")
+    db.log_event("INFO", f"Reset statistics metrics for key prefix {prefix}")
+    return {"status": "success"}
+
+@app.post("/api/admin/keys/update-tier")
+async def update_key_tier(payload: KeyUpdateTierRequest, token: dict = Depends(verify_token)):
+    key = payload.key.strip()
+    prefix = ai_engine._key_prefix(key)
+    db.set_setting(f"key_tier_{prefix}", payload.tier)
+    db.log_event("INFO", f"Updated tier for key prefix {prefix} to {payload.tier}")
+    return {"status": "success"}
+
+@app.post("/api/admin/keys/update-weight")
+async def update_key_weight(payload: KeyUpdateWeightRequest, token: dict = Depends(verify_token)):
+    key = payload.key.strip()
+    prefix = ai_engine._key_prefix(key)
+    db.set_setting(f"key_weight_{prefix}", str(payload.weight))
+    db.log_event("INFO", f"Updated weight for key prefix {prefix} to {payload.weight}")
+    return {"status": "success"}
 
 @app.get("/api/rules/qa")
 async def get_qa_rules(token: dict = Depends(verify_token)):

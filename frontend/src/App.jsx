@@ -33,7 +33,12 @@ function App() {
   const [loginTimezone, setLoginTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata');
   
   // App Navigation
-  const [activeTab, setActiveTab] = useState('overview'); // overview, contacts, rules, logs
+  const [activeTab, _setActiveTab] = useState('overview'); // overview, contacts, rules, logs
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const setActiveTab = (tab) => {
+    _setActiveTab(tab);
+    setMobileMenuOpen(false);
+  };
   const [expandedGroups, setExpandedGroups] = useState({
     core: true,
     ai: true,
@@ -2652,8 +2657,32 @@ function App() {
 
   return (
     <div className="app-container">
+      {/* Mobile Topbar */}
+      <div className="mobile-topbar">
+        <button 
+          type="button"
+          className="hamburger-btn" 
+          onClick={() => setMobileMenuOpen(true)}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <svg style={{ width: '20px', height: '20px' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+        <span className="mobile-topbar-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <ShieldIcon style={{ width: '18px', height: '18px', color: 'var(--color-primary)' }} />
+          Coet Manager
+        </span>
+      </div>
+
+      {/* Mobile Drawer Overlay */}
+      <div 
+        className={`drawer-overlay ${mobileMenuOpen ? 'open' : ''}`} 
+        onClick={() => setMobileMenuOpen(false)} 
+      />
+
       {/* SIDEBAR NAVIGATION */}
-      <aside className="sidebar">
+      <aside className={`sidebar ${mobileMenuOpen ? 'drawer open' : ''}`}>
         <h1 className="sidebar-title">
           <ShieldIcon className="w-7 h-7" style={{ color: 'var(--color-primary)' }} />
           Coet Manager
