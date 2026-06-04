@@ -2721,7 +2721,7 @@ function App() {
   };
 
   return (
-    <div className="app-container">
+    <div className="app-shell">
       {/* Mobile Topbar */}
       <div className="mobile-topbar">
         <button 
