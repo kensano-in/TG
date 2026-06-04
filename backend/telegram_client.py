@@ -279,7 +279,6 @@ class TelegramManager:
                 db.set_setting("owner_new_messages_since_rebuild", "0")
                 # Trigger in a background thread to not block the main process
                 import threading
-                import ai_engine
                 db.log_event("INFO", "Throttled owner style profile rebuild triggered in background.")
                 threading.Thread(target=ai_engine.rebuild_owner_style_profile, daemon=True).start()
             else:
@@ -718,7 +717,6 @@ class TelegramManager:
 
             # Check for direct Sensei command matching the offline regex patterns
             if is_shinichiro:
-                import ai_engine
                 offline_update = ai_engine.parse_sensei_command(text)
                 if offline_update:
                     db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL OFFLINE DETECTED: Command: {offline_update.get('action')}")
@@ -1695,7 +1693,6 @@ class TelegramManager:
                 
                 # Check for direct Sensei command matching the offline regex patterns
                 if is_shinichiro:
-                    import ai_engine
                     offline_update = ai_engine.parse_sensei_command(text)
                     if offline_update:
                         db.log_event("WARNING", f"⚙️ SENSEI PROTOCOL OFFLINE DETECTED (BOT CLIENT): Command: {offline_update.get('action')}")
@@ -3548,7 +3545,6 @@ class TelegramManager:
             # Show a typing indicator
             await event.respond("⏳ <i>Gemini AI is processing context...</i>")
             try:
-                import ai_engine
                 res, _ = ai_engine.generate_content_with_retry(prompts.get(cmd))
                 return f"🧠 <b>AI ASSISTANT {cmd.upper()} RESULT:</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n\n{res}"
             except Exception as e:

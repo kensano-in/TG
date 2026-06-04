@@ -1,0 +1,16 @@
+[Unit]
+Description=Coet Telegram Automation Backend Daemon
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/telegram-automation/backend
+ExecStart=/usr/bin/python3 run.py
+Restart=always
+RestartSec=5
+Environment=PORT=8000
+Environment=GCP_BACKUP_BUCKET=coet-db-backups
+
+[Install]
+WantedBy=multi-user.target
