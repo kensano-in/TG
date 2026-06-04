@@ -276,6 +276,11 @@ function App() {
   // newKeyLabel already declared above (shared with db-key manager)
   const [keyStatus, setKeyStatus] = useState('');
   const [keyTestResults, setKeyTestResults] = useState({});
+  const [bulkKeysInput, setBulkKeysInput] = useState('');
+  const [bulkLabelPrefix, setBulkLabelPrefix] = useState('Bulk Key');
+  const [bulkVerifyStatus, setBulkVerifyStatus] = useState('');
+  const [bulkVerifyResults, setBulkVerifyResults] = useState([]);
+  const [bulkVerifyLoading, setBulkVerifyLoading] = useState(false);
 
   // Persona Studio State
   const [personaLoading, setPersonaLoading] = useState(false);
@@ -2061,8 +2066,37 @@ function App() {
     try {
       const res = await fetch(`${API_BASE}/api/admin/keys/test-single`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ key }) });
       const data = await res.json();
-      setKeyTestResults(prev => ({ ...prev, [key]: data.valid ? 'Valid' : 'Invalid' }));
+      setKeyTestResults(prev => ({
+        ...prev,
+        [key]: data.status === 'active' ? 'Valid' : (data.status === 'quota_exceeded' ? 'Quota Cooldown' : 'Invalid')
+      }));
     } catch (e) { setKeyTestResults(prev => ({ ...prev, [key]: 'Error' })); }
+  };
+  const handleBulkVerifyKeys = async () => {
+    if (!bulkKeysInput.trim()) { setBulkVerifyStatus('Please paste some keys first.'); return; }
+    setBulkVerifyLoading(true);
+    setBulkVerifyStatus('Verifying & importing keys in parallel...');
+    setBulkVerifyResults([]);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/keys/bulk-verify`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ keys_text: bulkKeysInput, label_prefix: bulkLabelPrefix || 'Bulk Key' })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBulkVerifyStatus(`Successfully verified batch! Added ${data.added_count} new working keys.`);
+        setBulkVerifyResults(data.results || []);
+        setBulkKeysInput('');
+        fetchApiKeys();
+      } else {
+        setBulkVerifyStatus('Failed to verify batch keys.');
+      }
+    } catch (e) {
+      setBulkVerifyStatus('Network error occurred.');
+    } finally {
+      setBulkVerifyLoading(false);
+    }
   };
 
   // ---- Security & Access ----
@@ -7308,6 +7342,66 @@ function App() {
                 <button className="glass-btn" onClick={handleAddKey} style={{ padding: '10px 22px', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>Add Key</button>
               </div>
               {keyStatus && <div style={{ marginTop: '10px', fontSize: '0.85rem', color: keyStatus.startsWith('') ? '#34d399' : '#fbbf24' }}>{keyStatus}</div>}
+            </div>
+
+            {/* Bulk Verify & Import Keys */}
+            <div className="glass-container" style={{ padding: '24px' }}>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', color: '#a78bfa', marginBottom: '16px' }}>Bulk Verify & Import Keys</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>PASTE KEYS (ONE PER LINE OR COMMA SEPARATED)</label>
+                  <textarea
+                    className="glass-input"
+                    rows="4"
+                    placeholder={"AIzaSyA...\nAIzaSyB..."}
+                    value={bulkKeysInput}
+                    onChange={e => setBulkKeysInput(e.target.value)}
+                    style={{ width: '100%', fontFamily: 'monospace', fontSize: '0.82rem', resize: 'vertical' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1' }}>
+                    <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>BULK KEY LABEL PREFIX</label>
+                    <input
+                      className="glass-input"
+                      placeholder="Bulk Key..."
+                      value={bulkLabelPrefix}
+                      onChange={e => setBulkLabelPrefix(e.target.value)}
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                  <button
+                    className="glass-btn"
+                    disabled={bulkVerifyLoading}
+                    onClick={handleBulkVerifyKeys}
+                    style={{ padding: '10px 22px', fontSize: '0.9rem', whiteSpace: 'nowrap', opacity: bulkVerifyLoading ? 0.6 : 1 }}
+                  >
+                    {bulkVerifyLoading ? 'Verifying...' : 'Verify & Import Batch'}
+                  </button>
+                </div>
+
+                {bulkVerifyStatus && (
+                  <div style={{ marginTop: '10px', fontSize: '0.85rem', color: bulkVerifyStatus.includes('Successfully') ? '#34d399' : '#fbbf24', background: 'rgba(255,255,255,0.02)', padding: '10px 14px', borderRadius: '8px' }}>
+                    {bulkVerifyStatus}
+                  </div>
+                )}
+
+                {bulkVerifyResults.length > 0 && (
+                  <div style={{ marginTop: '16px' }}>
+                    <h4 style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '10px' }}>VERIFICATION RESULTS</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '180px', overflowY: 'auto', paddingRight: '4px' }}>
+                      {bulkVerifyResults.map((res, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', padding: '8px 12px', background: res.valid ? 'rgba(52,211,153,0.06)' : 'rgba(239,68,68,0.06)', borderRadius: '6px', border: `1px solid ${res.valid ? 'rgba(52,211,153,0.15)' : 'rgba(239,68,68,0.15)'}` }}>
+                          <span style={{ fontFamily: 'monospace' }}>{res.key.slice(0, 10)}···{res.key.slice(-6)}</span>
+                          <span style={{ fontWeight: 600, color: res.valid ? '#34d399' : '#f87171' }}>
+                            {res.valid ? 'Valid (Imported)' : `Invalid (${res.error || 'Failed'})`}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Keys List */}

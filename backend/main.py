@@ -888,6 +888,90 @@ async def test_single_key(payload: KeyTestSpecificRequest, token: dict = Depends
             ai_engine.set_key_health(key, "timeout", ai_engine.COOLDOWN_TIMEOUT)
         return {"status": status, "message": err_str}
 
+class BulkKeyVerifyRequest(BaseModel):
+    keys_text: str
+    label_prefix: Optional[str] = "Bulk Key"
+
+@app.post("/api/admin/keys/bulk-verify")
+async def bulk_verify_keys(payload: BulkKeyVerifyRequest, token: dict = Depends(verify_token)):
+    import json
+    raw_inputs = []
+    # Split by comma, semicolon or newline
+    cleaned_text = payload.keys_text.replace(",", "\n").replace(";", "\n")
+    for line in cleaned_text.split("\n"):
+        k = line.strip()
+        if k and k not in raw_inputs:
+            raw_inputs.append(k)
+            
+    if not raw_inputs:
+        return {"status": "success", "added_count": 0, "results": []}
+        
+    async def test_one(k):
+        try:
+            await asyncio.to_thread(
+                ai_engine._gemini_rest_call,
+                api_key=k,
+                prompt="ping",
+                model_name="gemini-2.5-flash-lite",
+                timeout=8.0
+            )
+            ai_engine.set_key_health(k, "active")
+            return {"key": k, "valid": True, "status": "active", "message": "Active and working"}
+        except Exception as e:
+            err_str = str(e)
+            status = ai_engine._classify_error(err_str)
+            if status == "quota_exceeded":
+                ai_engine.set_key_health(k, "quota_exceeded", ai_engine.COOLDOWN_QUOTA)
+            elif status == "invalid":
+                ai_engine.set_key_health(k, "invalid", ai_engine.COOLDOWN_INVALID)
+            else:
+                ai_engine.set_key_health(k, "timeout", ai_engine.COOLDOWN_TIMEOUT)
+            return {"key": k, "valid": False, "status": status, "message": err_str}
+
+    tasks = [test_one(k) for k in raw_inputs]
+    results = await asyncio.gather(*tasks)
+    
+    # Save the valid keys to database
+    db_keys_str = db.get_setting("gemini_keys", "[]")
+    try:
+        db_keys = json.loads(db_keys_str)
+    except Exception:
+        db_keys = []
+        
+    added_count = 0
+    for res in results:
+        if res["valid"]:
+            exists = False
+            for item in db_keys:
+                if item.get("key") == res["key"]:
+                    exists = True
+                    break
+            if not exists:
+                db_keys.append({
+                    "key": res["key"],
+                    "label": f"{payload.label_prefix} #{len(db_keys) + 1}"
+                })
+                added_count += 1
+                
+    if added_count > 0:
+        db.set_setting("gemini_keys", json.dumps(db_keys))
+        db.log_event("INFO", f"Bulk added {added_count} verified Gemini API keys to database pool.")
+        
+    return {
+        "status": "success",
+        "added_count": added_count,
+        "results": [
+            {
+                "key_prefix": r["key"][:8] + "...",
+                "full_key_masked": r["key"][:6] + "..." + r["key"][-6:] if len(r["key"]) > 12 else r["key"],
+                "valid": r["valid"],
+                "status": r["status"],
+                "message": r["message"]
+            }
+            for r in results
+        ]
+    }
+
 @app.post("/api/admin/keys/toggle")
 async def toggle_gemini_key(payload: KeyToggleRequest, token: dict = Depends(verify_token)):
     key = payload.key.strip()
