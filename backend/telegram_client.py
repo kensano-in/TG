@@ -4040,8 +4040,7 @@ class TelegramManager:
         start_time = time.time()
         async with event.client.action(sender_id, 'typing'):
             # Fast pre-check: skip Gemini call entirely if no healthy keys available
-            import ai_engine as _ai
-            _healthy_keys = _ai.get_healthy_keys()
+            _healthy_keys = ai_engine.get_healthy_keys()
             if not _healthy_keys:
                 db.log_event("WARNING", f"No healthy Gemini keys — instant fallback for {sender_name}.")
                 fallback_reply = ai_engine.get_rule_based_fallback(
