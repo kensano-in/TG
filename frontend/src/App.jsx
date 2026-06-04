@@ -70,6 +70,16 @@ function App() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
   
+  // Owner (Shinichirofr) Connection Wizard State
+  const [ownerStatus, setOwnerStatus] = useState({ connected: false, username: null, id: null, name: null });
+  const [ownerPhone, setOwnerPhone] = useState('');
+  const [ownerCode, setOwnerCode] = useState('');
+  const [ownerPassword, setOwnerPassword] = useState('');
+  const [ownerStep, setOwnerStep] = useState('init'); // init, code_pending, connected
+  const [ownerLoading, setOwnerLoading] = useState(false);
+  const [ownerError, setOwnerError] = useState('');
+  const [ownerSuccess, setOwnerSuccess] = useState('');
+  
   // Contacts State
   const [contacts, setContacts] = useState([]);
   const [selectedContact, setSelectedContact] = useState(null);
@@ -1496,6 +1506,119 @@ function App() {
     }
   };
 
+  // Owner (Shinichirofr) Account API Handlers
+  const fetchOwnerStatus = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/owner/status`, {
+        headers: getHeaders()
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setOwnerStatus(data);
+        if (data.connected) {
+          setOwnerStep('connected');
+        } else {
+          setOwnerStep('init');
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching owner status:", err);
+    }
+  };
+
+  const handleSendOwnerCode = async () => {
+    if (!ownerPhone.trim()) {
+      setOwnerError('Please enter a phone number.');
+      return;
+    }
+    setOwnerLoading(true);
+    setOwnerError('');
+    setOwnerSuccess('');
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/owner/send-code`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ phone: ownerPhone })
+      });
+      const data = await res.json();
+      if (res.ok && data.status === 'success') {
+        setOwnerStep('code_pending');
+        setOwnerSuccess('Verification code sent to your owner account!');
+      } else {
+        setOwnerError(data.message || data.detail || 'Failed to dispatch verification code.');
+      }
+    } catch (err) {
+      setOwnerError('Could not communicate with the owner auth backend.');
+    } finally {
+      setOwnerLoading(false);
+    }
+  };
+
+  const handleOwnerAuth = async (e) => {
+    if (e) e.preventDefault();
+    if (!ownerCode.trim()) {
+      setOwnerError('Please enter the verification code.');
+      return;
+    }
+    setOwnerLoading(true);
+    setOwnerError('');
+    setOwnerSuccess('');
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/owner/login`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({
+          code: ownerCode,
+          password: ownerPassword || null
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.status === 'success') {
+        setOwnerStep('connected');
+        setOwnerSuccess('Owner account authenticated successfully!');
+        fetchOwnerStatus();
+      } else if (data.status === 'password_required') {
+        setOwnerError('2-Step Verification Password required. Please enter it below.');
+      } else {
+        setOwnerError(data.message || data.detail || 'Login attempt failed.');
+      }
+    } catch (err) {
+      setOwnerError('Authentication process experienced a network fault.');
+    } finally {
+      setOwnerLoading(false);
+    }
+  };
+
+  const handleDisconnectOwner = async () => {
+    if (!window.confirm("Are you sure you want to disconnect the owner account? This will stop dual-session features.")) {
+      return;
+    }
+    setOwnerLoading(true);
+    setOwnerError('');
+    setOwnerSuccess('');
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/owner/disconnect`, {
+        method: 'POST',
+        headers: getHeaders()
+      });
+      if (res.ok) {
+        setOwnerStep('init');
+        setOwnerPhone('');
+        setOwnerCode('');
+        setOwnerPassword('');
+        setOwnerStatus({ connected: false, username: null, id: null, name: null });
+        setOwnerSuccess('Owner account disconnected.');
+      } else {
+        const data = await res.json();
+        setOwnerError(data.message || 'Disconnect failed.');
+      }
+    } catch (err) {
+      setOwnerError('Failed to contact disconnect endpoint.');
+    } finally {
+      setOwnerLoading(false);
+    }
+  };
+
   // Send Manual Reply
   const handleSendReply = async (textToSend) => {
     if (!selectedContact || !textToSend.trim()) return;
@@ -1611,6 +1734,7 @@ function App() {
       fetchAnalytics();
       fetchKeywordRules();
       fetchReminders();
+      fetchOwnerStatus();
     }
   }, [token]);
 
@@ -6562,6 +6686,147 @@ function App() {
         {/* ===== TAB 8: SYSTEM ===== */}
         {activeTab === 'system' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+            {/* Owner Connection Option (Shinichirofr) */}
+            <div className="glass-container" style={{ padding: '24px', border: '1px solid rgba(139, 92, 246, 0.4)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <div>
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', color: '#a78bfa', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>🔗</span> Shinichiro Owner Dual-Session Connection
+                  </h3>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    Connect the Shinichiro owner account to enable administrative commands, live status sync, and dual-session operations.
+                  </p>
+                </div>
+                <div>
+                  {ownerStatus.connected ? (
+                    <span style={{ background: 'rgba(52, 211, 153, 0.15)', border: '1px solid rgba(52, 211, 153, 0.3)', color: '#34d399', borderRadius: '20px', padding: '4px 12px', fontSize: '0.78rem', fontWeight: 600 }}>
+                      ● Connected
+                    </span>
+                  ) : (
+                    <span style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', borderRadius: '20px', padding: '4px 12px', fontSize: '0.78rem', fontWeight: 600 }}>
+                      ○ Disconnected
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {ownerError && (
+                <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', padding: '12px', marginBottom: '16px', fontSize: '0.82rem', color: '#fca5a5' }}>
+                  ⚠️ {ownerError}
+                </div>
+              )}
+
+              {ownerSuccess && (
+                <div style={{ background: 'rgba(52, 211, 153, 0.1)', border: '1px solid rgba(52, 211, 153, 0.3)', borderRadius: '8px', padding: '12px', marginBottom: '16px', fontSize: '0.82rem', color: '#a7f3d0' }}>
+                  ✓ {ownerSuccess}
+                </div>
+              )}
+
+              {ownerStep === 'init' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxWidth: '400px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-dark)', marginBottom: '6px' }}>Phone Number (International Format, e.g. +819012345678)</label>
+                    <input
+                      type="text"
+                      className="glass-input"
+                      placeholder="+1234567890"
+                      value={ownerPhone}
+                      onChange={e => setOwnerPhone(e.target.value)}
+                      disabled={ownerLoading}
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                  <button
+                    className="glass-btn"
+                    onClick={handleSendOwnerCode}
+                    disabled={ownerLoading}
+                    style={{ padding: '10px 20px', fontSize: '0.88rem', alignSelf: 'flex-start' }}
+                  >
+                    {ownerLoading ? 'Sending OTP...' : 'Send Verification Code'}
+                  </button>
+                </div>
+              )}
+
+              {ownerStep === 'code_pending' && (
+                <form onSubmit={handleOwnerAuth} style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxWidth: '400px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-dark)', marginBottom: '6px' }}>Telegram Verification Code</label>
+                    <input
+                      type="text"
+                      className="glass-input"
+                      placeholder="Enter 5-digit code"
+                      value={ownerCode}
+                      onChange={e => setOwnerCode(e.target.value)}
+                      disabled={ownerLoading}
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-dark)', marginBottom: '6px' }}>2-Step Verification Password (Optional)</label>
+                    <input
+                      type="password"
+                      className="glass-input"
+                      placeholder="Enter password if enabled"
+                      value={ownerPassword}
+                      onChange={e => setOwnerPassword(e.target.value)}
+                      disabled={ownerLoading}
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      type="submit"
+                      className="glass-btn"
+                      disabled={ownerLoading}
+                      style={{ padding: '10px 20px', fontSize: '0.88rem' }}
+                    >
+                      {ownerLoading ? 'Verifying...' : 'Verify & Link Account'}
+                    </button>
+                    <button
+                      type="button"
+                      className="glass-btn-secondary"
+                      onClick={() => { setOwnerStep('init'); setOwnerError(''); setOwnerSuccess(''); }}
+                      disabled={ownerLoading}
+                      style={{ padding: '10px 20px', fontSize: '0.88rem' }}
+                    >
+                      Back
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {ownerStep === 'connected' && (
+                <div style={{ background: 'rgba(124, 58, 237, 0.05)', border: '1px solid rgba(124, 58, 237, 0.15)', borderRadius: '10px', padding: '18px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                    <div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-dark)', textTransform: 'uppercase', marginBottom: '4px' }}>Owner Username</div>
+                      <div style={{ fontSize: '0.92rem', fontWeight: 600, color: '#d8b4fe' }}>@{ownerStatus.username || 'N/A'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-dark)', textTransform: 'uppercase', marginBottom: '4px' }}>Owner Name</div>
+                      <div style={{ fontSize: '0.92rem', fontWeight: 600, color: '#d8b4fe' }}>{ownerStatus.name || 'N/A'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-dark)', textTransform: 'uppercase', marginBottom: '4px' }}>Telegram ID</div>
+                      <div style={{ fontSize: '0.92rem', fontWeight: 600, color: '#d8b4fe' }}>{ownerStatus.id || 'N/A'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-dark)', textTransform: 'uppercase', marginBottom: '4px' }}>Dual-Session Status</div>
+                      <div style={{ fontSize: '0.92rem', fontWeight: 600, color: '#34d399' }}>Active & Synced</div>
+                    </div>
+                  </div>
+                  <button
+                    className="glass-btn"
+                    onClick={handleDisconnectOwner}
+                    disabled={ownerLoading}
+                    style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', padding: '10px 20px', fontSize: '0.88rem' }}
+                  >
+                    {ownerLoading ? 'Disconnecting...' : 'Disconnect Owner Account'}
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* Telemetry */}
             <div className="glass-container" style={{ padding: '24px' }}>

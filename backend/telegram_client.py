@@ -160,6 +160,10 @@ class TelegramManager:
                 if not self.bot_client.is_connected():
                     await self.bot_client.start(bot_token=BOT_TOKEN)
                     db.log_event("INFO", "Telegram bot client connected using token.")
+                    fresh_bot_session = self.bot_client.session.save()
+                    if fresh_bot_session:
+                        db.set_setting("telegram_bot_session_string", fresh_bot_session)
+                        db.log_event("INFO", "Bot token session string saved to database.")
             except Exception as e:
                 db.log_event("ERROR", f"Failed to connect bot client: {e}")
             
@@ -4511,25 +4515,42 @@ Rules:
                 # ─── 2. @Shinichirofr (owner) health check ────────────────────────
                 try:
                     owner_session_str = db.get_setting("owner_session_string", "")
-                    if not owner_session_str:
-                        continue  # not linked yet, skip
-                    if self.owner_client is None or not self.owner_client.is_connected():
-                        db.log_event("WARNING", "Guardian: @Shinichirofr owner client disconnected — reconnecting...")
-                        self.owner_client = TelegramClient(
-                            StringSession(owner_session_str), OWNER_API_ID, OWNER_API_HASH
-                        )
-                        await self.owner_client.connect()
-                        db.log_event("INFO", "Guardian: @Shinichirofr reconnected successfully.")
-                    # Verify still authorized
-                    if not await self.owner_client.is_user_authorized():
-                        db.log_event("ERROR", "Guardian: @Shinichirofr is connected but NOT authorized — session may be revoked!")
-                    else:
-                        # Refresh session string to DB
-                        fresh = self.owner_client.session.save()
-                        if fresh:
-                            db.set_setting("owner_session_string", fresh)
+                    if owner_session_str:
+                        if self.owner_client is None or not self.owner_client.is_connected():
+                            db.log_event("WARNING", "Guardian: @Shinichirofr owner client disconnected — reconnecting...")
+                            self.owner_client = TelegramClient(
+                                StringSession(owner_session_str), OWNER_API_ID, OWNER_API_HASH
+                            )
+                            await self.owner_client.connect()
+                            db.log_event("INFO", "Guardian: @Shinichirofr reconnected successfully.")
+                        # Verify still authorized
+                        if not await self.owner_client.is_user_authorized():
+                            db.log_event("ERROR", "Guardian: @Shinichirofr is connected but NOT authorized — session may be revoked!")
+                        else:
+                            # Refresh session string to DB
+                            fresh = self.owner_client.session.save()
+                            if fresh:
+                                db.set_setting("owner_session_string", fresh)
                 except Exception as e:
                     db.log_event("ERROR", f"Guardian: @Shinichirofr check failed: {e}")
+
+                # ─── 3. @Coetbot (bot token client) health check ──────────────────
+                try:
+                    if BOT_TOKEN:
+                        if self.bot_client is None:
+                            bot_session_str = db.get_setting("telegram_bot_session_string", "")
+                            self.bot_client = TelegramClient(
+                                StringSession(bot_session_str), API_ID, API_HASH
+                            )
+                        if not self.bot_client.is_connected():
+                            db.log_event("WARNING", "Guardian: Bot client (@Coetbot) disconnected — reconnecting...")
+                            await self.bot_client.start(bot_token=BOT_TOKEN)
+                            db.log_event("INFO", "Guardian: Bot client (@Coetbot) reconnected successfully.")
+                            fresh_bot_session = self.bot_client.session.save()
+                            if fresh_bot_session:
+                                db.set_setting("telegram_bot_session_string", fresh_bot_session)
+                except Exception as e:
+                    db.log_event("ERROR", f"Guardian: Bot client check failed: {e}")
 
             except Exception as e:
                 db.log_event("ERROR", f"Session Guardian outer exception: {e}")

@@ -41,12 +41,12 @@ async def startup():
     profile = db.get_setting("owner_style_profile")
     if not profile:
         import threading
-        import ai_engine
         db.log_event("INFO", "Owner style DNA profile not found. Rebuilding on startup...")
         threading.Thread(target=ai_engine.rebuild_owner_style_profile, daemon=True).start()
     
     # Run the connection and listener registration in a background task to handle initial network drops robustly
     async def connect_and_start_bg():
+        import ai_engine
         db.log_event("INFO", "Starting background Telegram client connection thread...")
         while True:
             try:
@@ -69,6 +69,7 @@ async def startup():
 
     # Background self-healing key diagnostics
     async def auto_heal_keys_bg():
+        import ai_engine
         db.log_event("INFO", "Self-healing background task for key rotation pool started.")
         while True:
             await asyncio.sleep(300)
