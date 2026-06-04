@@ -40,38 +40,12 @@ function App() {
     setMobileMenuOpen(false);
   };
   const [expandedGroups, setExpandedGroups] = useState({
-    core: true,
-    contacts: false,
-    pipeline: false,
-    reminders: false,
-    leads: false,
-    rules: false,
-    swarm: false,
-    personas: false,
-    labs: false,
-    tone: false,
-    sentiment: false,
-    broadcast: false,
-    scheduler: false,
+    ai: false,
     outreach: false,
-    media: false,
-    feedback: false,
-    analytics: false,
-    groups: false,
-    relays: false,
-    mirror: false,
-    proxies: false,
-    sessions: false,
-    keywords: false,
-    traffic: false,
-    commerce: false,
-    billing: false,
-    payments: false,
-    disputes: false,
+    network: false,
+    storefront: false,
     security: false,
-    antiScam: false,
-    threats: false,
-    sandbox: true
+    diagnostic: false
   });
   const toggleGroup = (group) => {
     setExpandedGroups(prev => ({ ...prev, [group]: !prev[group] }));
@@ -3016,164 +2990,46 @@ function App() {
         {/* Navigation Tabs */}
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', flex: 1, paddingRight: '4px' }}>
           
-          {/* Group 1: Core Console */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('core')} style={sidebarGroupHeaderStyle(expandedGroups.core)}>
-              <span>1. Core Console</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.core)}>▶</span>
-            </button>
-            {expandedGroups.core && (
-              <div style={sidebarGroupContentStyle}>
-                <button className={`sidebar-nav-btn ${activeTab === 'overview' ? 'active-nav' : ''}`} onClick={() => setActiveTab('overview')}>
-                  <DashboardIcon /> Overview
-                </button>
-              </div>
-            )}
-          </div>
+          {/* Top-Level Direct Buttons */}
+          <button className={`sidebar-nav-btn ${activeTab === 'overview' ? 'active-nav' : ''}`} onClick={() => setActiveTab('overview')}>
+            <DashboardIcon /> Overview
+          </button>
+          <button className={`sidebar-nav-btn ${activeTab === 'contacts' ? 'active-nav' : ''}`} onClick={() => setActiveTab('contacts')}>
+            <ContactsIcon /> Contacts & Memory
+          </button>
+          <button className={`sidebar-nav-btn ${activeTab === 'pipeline' ? 'active-nav' : ''}`} onClick={() => setActiveTab('pipeline')}>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" /></svg> Deals Pipeline
+          </button>
+          <button className={`sidebar-nav-btn ${activeTab === 'reminders' ? 'active-nav' : ''}`} onClick={() => setActiveTab('reminders')}>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg> Reminders
+          </button>
+          <button className={`sidebar-nav-btn ${activeTab === 'leadExtractor' ? 'active-nav' : ''}`} onClick={() => setActiveTab('leadExtractor')}>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" /></svg> Lead Extractor
+          </button>
 
-          {/* Group 2: Account Memory */}
+          {/* Group 1: AI & Intelligent Labs */}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('contacts')} style={sidebarGroupHeaderStyle(expandedGroups.contacts)}>
-              <span>2. Contacts & Memory</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.contacts)}>▶</span>
+            <button type="button" onClick={() => toggleGroup('ai')} style={sidebarGroupHeaderStyle(expandedGroups.ai)}>
+              <span>AI & Intelligent Labs</span>
+              <span style={sidebarGroupArrowStyle(expandedGroups.ai)}>▶</span>
             </button>
-            {expandedGroups.contacts && (
-              <div style={sidebarGroupContentStyle}>
-                <button className={`sidebar-nav-btn ${activeTab === 'contacts' ? 'active-nav' : ''}`} onClick={() => setActiveTab('contacts')}>
-                  <ContactsIcon /> Contacts & Memory
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 3: Deals Pipeline */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('pipeline')} style={sidebarGroupHeaderStyle(expandedGroups.pipeline)}>
-              <span>3. Deals Pipeline</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.pipeline)}>▶</span>
-            </button>
-            {expandedGroups.pipeline && (
-              <div style={sidebarGroupContentStyle}>
-                <button className={`sidebar-nav-btn ${activeTab === 'pipeline' ? 'active-nav' : ''}`} onClick={() => setActiveTab('pipeline')}>
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" /></svg> Deals Pipeline
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 4: Task Reminders */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('reminders')} style={sidebarGroupHeaderStyle(expandedGroups.reminders)}>
-              <span>4. Reminders</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.reminders)}>▶</span>
-            </button>
-            {expandedGroups.reminders && (
-              <div style={sidebarGroupContentStyle}>
-                <button className={`sidebar-nav-btn ${activeTab === 'reminders' ? 'active-nav' : ''}`} onClick={() => setActiveTab('reminders')}>
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg> Reminders
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 5: Lead Scrapers */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('leads')} style={sidebarGroupHeaderStyle(expandedGroups.leads)}>
-              <span>5. Lead Extractor</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.leads)}>▶</span>
-            </button>
-            {expandedGroups.leads && (
-              <div style={sidebarGroupContentStyle}>
-                <button className={`sidebar-nav-btn ${activeTab === 'leadExtractor' ? 'active-nav' : ''}`} onClick={() => setActiveTab('leadExtractor')}>
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" /></svg> Lead Extractor
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 6: AI Rules */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('rules')} style={sidebarGroupHeaderStyle(expandedGroups.rules)}>
-              <span>6. AI Rules Engine</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.rules)}>▶</span>
-            </button>
-            {expandedGroups.rules && (
+            {expandedGroups.ai && (
               <div style={sidebarGroupContentStyle}>
                 <button className={`sidebar-nav-btn ${activeTab === 'rules' ? 'active-nav' : ''}`} onClick={() => setActiveTab('rules')}>
                   <SettingsIcon /> AI Rules
                 </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 7: Swarm Coordinator */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('swarm')} style={sidebarGroupHeaderStyle(expandedGroups.swarm)}>
-              <span>7. AI Swarm Control</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.swarm)}>▶</span>
-            </button>
-            {expandedGroups.swarm && (
-              <div style={sidebarGroupContentStyle}>
                 <button className={`sidebar-nav-btn ${activeTab === 'aiSwarm' ? 'active-nav' : ''}`} onClick={() => setActiveTab('aiSwarm')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg> AI Swarm Coordinator
                 </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 8: Persona Studio */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('personas')} style={sidebarGroupHeaderStyle(expandedGroups.personas)}>
-              <span>8. Persona Studio</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.personas)}>▶</span>
-            </button>
-            {expandedGroups.personas && (
-              <div style={sidebarGroupContentStyle}>
                 <button className={`sidebar-nav-btn ${activeTab === 'personas' ? 'active-nav' : ''}`} onClick={() => setActiveTab('personas')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg> Persona Studio
                 </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 9: AI Labs */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('labs')} style={sidebarGroupHeaderStyle(expandedGroups.labs)}>
-              <span>9. AI Labs</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.labs)}>▶</span>
-            </button>
-            {expandedGroups.labs && (
-              <div style={sidebarGroupContentStyle}>
                 <button className={`sidebar-nav-btn ${activeTab === 'intelligence' ? 'active-nav' : ''}`} onClick={() => setActiveTab('intelligence')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg> AI Lab
                 </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 10: Tone & Writing DNA */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('tone')} style={sidebarGroupHeaderStyle(expandedGroups.tone)}>
-              <span>10. Tone & Writing DNA</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.tone)}>▶</span>
-            </button>
-            {expandedGroups.tone && (
-              <div style={sidebarGroupContentStyle}>
                 <button className={`sidebar-nav-btn ${activeTab === 'styleMirror' ? 'active-nav' : ''}`} onClick={() => setActiveTab('styleMirror')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg> Tone & Dialect Mirror
                 </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 11: Sentiment Radar */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('sentiment')} style={sidebarGroupHeaderStyle(expandedGroups.sentiment)}>
-              <span>11. Sentiment Radar</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.sentiment)}>▶</span>
-            </button>
-            {expandedGroups.sentiment && (
-              <div style={sidebarGroupContentStyle}>
                 <button className={`sidebar-nav-btn ${activeTab === 'sentimentRadar' ? 'active-nav' : ''}`} onClick={() => setActiveTab('sentimentRadar')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6M12 9v6m-7 6h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg> Sentiment Radar
                 </button>
@@ -3181,89 +3037,29 @@ function App() {
             )}
           </div>
 
-          {/* Group 12: Broadcast Hub */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('broadcast')} style={sidebarGroupHeaderStyle(expandedGroups.broadcast)}>
-              <span>12. Broadcast Hub</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.broadcast)}>▶</span>
-            </button>
-            {expandedGroups.broadcast && (
-              <div style={sidebarGroupContentStyle}>
-                <button className={`sidebar-nav-btn ${activeTab === 'broadcast' ? 'active-nav' : ''}`} onClick={() => setActiveTab('broadcast')}>
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg> Broadcast
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 13: Time Scheduler */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('scheduler')} style={sidebarGroupHeaderStyle(expandedGroups.scheduler)}>
-              <span>13. Job Scheduler</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.scheduler)}>▶</span>
-            </button>
-            {expandedGroups.scheduler && (
-              <div style={sidebarGroupContentStyle}>
-                <button className={`sidebar-nav-btn ${activeTab === 'scheduler' ? 'active-nav' : ''}`} onClick={() => setActiveTab('scheduler')}>
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> Scheduler
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 14: DM Campaigns */}
+          {/* Group 2: Outreach & Campaigns */}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <button type="button" onClick={() => toggleGroup('outreach')} style={sidebarGroupHeaderStyle(expandedGroups.outreach)}>
-              <span>14. Outreach Campaign</span>
+              <span>Outreach & Campaigns</span>
               <span style={sidebarGroupArrowStyle(expandedGroups.outreach)}>▶</span>
             </button>
             {expandedGroups.outreach && (
               <div style={sidebarGroupContentStyle}>
+                <button className={`sidebar-nav-btn ${activeTab === 'broadcast' ? 'active-nav' : ''}`} onClick={() => setActiveTab('broadcast')}>
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg> Broadcast
+                </button>
+                <button className={`sidebar-nav-btn ${activeTab === 'scheduler' ? 'active-nav' : ''}`} onClick={() => setActiveTab('scheduler')}>
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> Scheduler
+                </button>
                 <button className={`sidebar-nav-btn ${activeTab === 'massdmCampaign' ? 'active-nav' : ''}`} onClick={() => setActiveTab('massdmCampaign')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg> DM Campaigns
                 </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 15: Media Postings */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('media')} style={sidebarGroupHeaderStyle(expandedGroups.media)}>
-              <span>15. Media Scheduler</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.media)}>▶</span>
-            </button>
-            {expandedGroups.media && (
-              <div style={sidebarGroupContentStyle}>
                 <button className={`sidebar-nav-btn ${activeTab === 'mediaScheduler' ? 'active-nav' : ''}`} onClick={() => setActiveTab('mediaScheduler')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg> Rich Media Scheduler
                 </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 16: Feedback Loop */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('feedback')} style={sidebarGroupHeaderStyle(expandedGroups.feedback)}>
-              <span>16. Feedback & Vouches</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.feedback)}>▶</span>
-            </button>
-            {expandedGroups.feedback && (
-              <div style={sidebarGroupContentStyle}>
                 <button className={`sidebar-nav-btn ${activeTab === 'feedbackCollector' ? 'active-nav' : ''}`} onClick={() => setActiveTab('feedbackCollector')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg> Feedback & Vouches
                 </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 17: General Analytics */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('analytics')} style={sidebarGroupHeaderStyle(expandedGroups.analytics)}>
-              <span>17. Growth Analytics</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.analytics)}>▶</span>
-            </button>
-            {expandedGroups.analytics && (
-              <div style={sidebarGroupContentStyle}>
                 <button className={`sidebar-nav-btn ${activeTab === 'analytics' ? 'active-nav' : ''}`} onClick={() => setActiveTab('analytics')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg> Analytics
                 </button>
@@ -3271,104 +3067,32 @@ function App() {
             )}
           </div>
 
-          {/* Group 18: Group Chats Manager */}
+          {/* Group 3: Network & Sync Channels */}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('groups')} style={sidebarGroupHeaderStyle(expandedGroups.groups)}>
-              <span>18. GC Group Chats</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.groups)}>▶</span>
+            <button type="button" onClick={() => toggleGroup('network')} style={sidebarGroupHeaderStyle(expandedGroups.network)}>
+              <span>Network & Sync Channels</span>
+              <span style={sidebarGroupArrowStyle(expandedGroups.network)}>▶</span>
             </button>
-            {expandedGroups.groups && (
+            {expandedGroups.network && (
               <div style={sidebarGroupContentStyle}>
                 <button className={`sidebar-nav-btn ${activeTab === 'gcManager' ? 'active-nav' : ''}`} onClick={() => setActiveTab('gcManager')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg> GC Manager
                 </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 19: Relay Cloners */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('relays')} style={sidebarGroupHeaderStyle(expandedGroups.relays)}>
-              <span>19. Auto Relays & Cloners</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.relays)}>▶</span>
-            </button>
-            {expandedGroups.relays && (
-              <div style={sidebarGroupContentStyle}>
                 <button className={`sidebar-nav-btn ${activeTab === 'autoForwarder' ? 'active-nav' : ''}`} onClick={() => setActiveTab('autoForwarder')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg> Auto-Forwarder
                 </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 20: Channel Mirror */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('mirror')} style={sidebarGroupHeaderStyle(expandedGroups.mirror)}>
-              <span>20. Channel Mirroring</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.mirror)}>▶</span>
-            </button>
-            {expandedGroups.mirror && (
-              <div style={sidebarGroupContentStyle}>
                 <button className={`sidebar-nav-btn ${activeTab === 'channelMirror' ? 'active-nav' : ''}`} onClick={() => setActiveTab('channelMirror')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg> Channel Mirroring
                 </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 21: Proxy Vault */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('proxies')} style={sidebarGroupHeaderStyle(expandedGroups.proxies)}>
-              <span>21. Proxy Manager</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.proxies)}>▶</span>
-            </button>
-            {expandedGroups.proxies && (
-              <div style={sidebarGroupContentStyle}>
                 <button className={`sidebar-nav-btn ${activeTab === 'proxyManager' ? 'active-nav' : ''}`} onClick={() => setActiveTab('proxyManager')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" /></svg> Proxy Manager
                 </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 22: Session Rotator */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('sessions')} style={sidebarGroupHeaderStyle(expandedGroups.sessions)}>
-              <span>22. Multi-Session Rotator</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.sessions)}>▶</span>
-            </button>
-            {expandedGroups.sessions && (
-              <div style={sidebarGroupContentStyle}>
                 <button className={`sidebar-nav-btn ${activeTab === 'sessionRotator' ? 'active-nav' : ''}`} onClick={() => setActiveTab('sessionRotator')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M9 11l3-3m0 0l-3-3m3 3H9" /></svg> Session Rotator
                 </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 23: Keyword Studio */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('keywords')} style={sidebarGroupHeaderStyle(expandedGroups.keywords)}>
-              <span>23. Keyword Studio</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.keywords)}>▶</span>
-            </button>
-            {expandedGroups.keywords && (
-              <div style={sidebarGroupContentStyle}>
                 <button className={`sidebar-nav-btn ${activeTab === 'keywordStudio' ? 'active-nav' : ''}`} onClick={() => setActiveTab('keywordStudio')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg> Keyword Studio
                 </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 24: Traffic Monitor */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('traffic')} style={sidebarGroupHeaderStyle(expandedGroups.traffic)}>
-              <span>24. Traffic Monitor</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.traffic)}>▶</span>
-            </button>
-            {expandedGroups.traffic && (
-              <div style={sidebarGroupContentStyle}>
                 <button className={`sidebar-nav-btn ${activeTab === 'trafficMonitor' ? 'active-nav' : ''}`} onClick={() => setActiveTab('trafficMonitor')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg> Traffic Monitor
                 </button>
@@ -3376,65 +3100,32 @@ function App() {
             )}
           </div>
 
-          {/* Group 25: Commerce Deals */}
+          {/* Group 4: Storefront & Escrow Hub */}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('commerce')} style={sidebarGroupHeaderStyle(expandedGroups.commerce)}>
-              <span>25. Deal Manager</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.commerce)}>▶</span>
+            <button type="button" onClick={() => toggleGroup('storefront')} style={sidebarGroupHeaderStyle(expandedGroups.storefront)}>
+              <span>Storefront & Escrow Hub</span>
+              <span style={sidebarGroupArrowStyle(expandedGroups.storefront)}>▶</span>
             </button>
-            {expandedGroups.commerce && (
+            {expandedGroups.storefront && (
               <div style={sidebarGroupContentStyle}>
                 <button className={`sidebar-nav-btn ${activeTab === 'dealManager' ? 'active-nav' : ''}`} onClick={() => setActiveTab('dealManager')}>
                   <BriefcaseIcon /> Deal Manager
                 </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 26: Billing Ledger */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('billing')} style={sidebarGroupHeaderStyle(expandedGroups.billing)}>
-              <span>26. Store Invoicing & Ledger</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.billing)}>▶</span>
-            </button>
-            {expandedGroups.billing && (
-              <div style={sidebarGroupContentStyle}>
+                <button className={`sidebar-nav-btn ${activeTab === 'storefrontAnalytics' ? 'active-nav' : ''}`} onClick={() => setActiveTab('storefrontAnalytics')}>
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg> Storefront Analytics
+                </button>
                 <button className={`sidebar-nav-btn ${activeTab === 'ledgerStudio' ? 'active-nav' : ''}`} onClick={() => setActiveTab('ledgerStudio')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg> Ledger Studio
                 </button>
                 <button className={`sidebar-nav-btn ${activeTab === 'billingLedger' ? 'active-nav' : ''}`} onClick={() => setActiveTab('billingLedger')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> Store Invoicing Ledger
                 </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 27: Payment Portal */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('payments')} style={sidebarGroupHeaderStyle(expandedGroups.payments)}>
-              <span>27. Payment Gateways</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.payments)}>▶</span>
-            </button>
-            {expandedGroups.payments && (
-              <div style={sidebarGroupContentStyle}>
                 <button className={`sidebar-nav-btn ${activeTab === 'paymentHub' ? 'active-nav' : ''}`} onClick={() => setActiveTab('paymentHub')}>
                   <CreditCardIcon /> Payment Hub
                 </button>
                 <button className={`sidebar-nav-btn ${activeTab === 'paymentEscrow' ? 'active-nav' : ''}`} onClick={() => setActiveTab('paymentEscrow')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg> Escrow Vault Hub
                 </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 28: Dispute Arbitrator */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('disputes')} style={sidebarGroupHeaderStyle(expandedGroups.disputes)}>
-              <span>28. Disputes & Licenses</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.disputes)}>▶</span>
-            </button>
-            {expandedGroups.disputes && (
-              <div style={sidebarGroupContentStyle}>
                 <button className={`sidebar-nav-btn ${activeTab === 'disputeArbitrator' ? 'active-nav' : ''}`} onClick={() => setActiveTab('disputeArbitrator')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7H1m12 0l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M16 7l3 9m-3-9h-5" /></svg> Dispute Arbitrator
                 </button>
@@ -3445,10 +3136,10 @@ function App() {
             )}
           </div>
 
-          {/* Group 29: Security Shield */}
+          {/* Group 5: Security & Shield Radar */}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <button type="button" onClick={() => toggleGroup('security')} style={sidebarGroupHeaderStyle(expandedGroups.security)}>
-              <span>29. Shield Security</span>
+              <span>Security & Shield Radar</span>
               <span style={sidebarGroupArrowStyle(expandedGroups.security)}>▶</span>
             </button>
             {expandedGroups.security && (
@@ -3459,18 +3150,6 @@ function App() {
                 <button className={`sidebar-nav-btn ${activeTab === 'antiScam' ? 'active-nav' : ''}`} onClick={() => setActiveTab('antiScam')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg> Anti-Scam Cap
                 </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 30: Threat Radar & Blockers */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('threats')} style={sidebarGroupHeaderStyle(expandedGroups.threats)}>
-              <span>30. Threats & Filters</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.threats)}>▶</span>
-            </button>
-            {expandedGroups.threats && (
-              <div style={sidebarGroupContentStyle}>
                 <button className={`sidebar-nav-btn ${activeTab === 'threatRadar' ? 'active-nav' : ''}`} onClick={() => setActiveTab('threatRadar')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg> Threat Radar
                 </button>
@@ -3483,18 +3162,6 @@ function App() {
                 <button className={`sidebar-nav-btn ${activeTab === 'linkProtector' ? 'active-nav' : ''}`} onClick={() => setActiveTab('linkProtector')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg> Link Protector
                 </button>
-              </div>
-            )}
-          </div>
-
-          {/* Group 31: Compliance & Archive */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('archiving')} style={sidebarGroupHeaderStyle(expandedGroups.archiving)}>
-              <span>31. Compliance & Archive</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.archiving)}>▶</span>
-            </button>
-            {expandedGroups.archiving && (
-              <div style={sidebarGroupContentStyle}>
                 <button className={`sidebar-nav-btn ${activeTab === 'autoArchiver' ? 'active-nav' : ''}`} onClick={() => setActiveTab('autoArchiver')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 4v3m0 0v3m0-3h3m-3 0H5m12 0h3m-3 0H5m7 12H7a2 2 0 01-2-2V6a2 2 0 012-2h11" /></svg> Archive Exporter
                 </button>
@@ -3505,13 +3172,13 @@ function App() {
             )}
           </div>
 
-          {/* Group 32: Diagnostic Sandbox */}
+          {/* Group 6: Diagnostic Sandbox */}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" onClick={() => toggleGroup('sandbox')} style={sidebarGroupHeaderStyle(expandedGroups.sandbox)}>
-              <span>32. Diagnostic Sandbox</span>
-              <span style={sidebarGroupArrowStyle(expandedGroups.sandbox)}>▶</span>
+            <button type="button" onClick={() => toggleGroup('diagnostic')} style={sidebarGroupHeaderStyle(expandedGroups.diagnostic)}>
+              <span>Diagnostic Sandbox</span>
+              <span style={sidebarGroupArrowStyle(expandedGroups.diagnostic)}>▶</span>
             </button>
-            {expandedGroups.sandbox && (
+            {expandedGroups.diagnostic && (
               <div style={sidebarGroupContentStyle}>
                 <button className={`sidebar-nav-btn ${activeTab === 'commands' ? 'active-nav' : ''}`} onClick={() => setActiveTab('commands')}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg> Console Terminal
@@ -3546,7 +3213,6 @@ function App() {
               </div>
             )}
           </div>
-          
         </nav>
 
         
@@ -3643,9 +3309,9 @@ function App() {
             </p>
 
           </div>
-
-          {/* Live clock + WS badge in header */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* Combined Control Center Panel */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            {/* Spotlight Summon Button */}
             <button 
               className="glass-btn-secondary micro-scale glow-shadow-primary"
               onClick={() => {
@@ -3670,6 +3336,8 @@ function App() {
             >
               Summon Console <kbd style={{ fontSize: '0.7rem', opacity: 0.8, background: 'rgba(0,0,0,0.3)', padding: '2px 5px', borderRadius: '4px', fontFamily: 'monospace' }}>K</kbd>
             </button>
+
+            {/* Live Clock */}
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 700, color: '#d8b4fe' }}>
                 {liveClock.toLocaleTimeString('en-IN', { timeZone: settings.timezone || 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
@@ -3678,58 +3346,62 @@ function App() {
                 {liveClock.toLocaleDateString('en-IN', { timeZone: settings.timezone || 'Asia/Kolkata', weekday: 'short', month: 'short', day: 'numeric' })}
               </div>
             </div>
+
+            {/* WS Live/Off Indicator */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: wsConnected ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)', border: `1px solid ${wsConnected ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}`, borderRadius: '8px', padding: '4px 10px' }}>
               <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: wsConnected ? '#10b981' : '#ef4444', display: 'inline-block', animation: wsConnected ? 'pulse 1.5s infinite' : 'none' }} />
               <span style={{ fontSize: '0.72rem', color: wsConnected ? '#34d399' : '#f87171', fontWeight: 600 }}>WS {wsConnected ? 'LIVE' : 'OFF'}</span>
             </div>
-          </div>
 
-          {/* Quick status selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            {sysStatus.resolved_status && sysStatus.resolved_status !== sysStatus.current_status && (
-              <span className="badge" style={{
-                backgroundColor: 'rgba(124, 77, 255, 0.15)',
-                color: '#d8b4fe',
-                border: '1px solid rgba(139, 92, 246, 0.4)',
-                boxShadow: '0 0 10px rgba(139, 92, 246, 0.2)',
-                fontSize: '0.8rem',
-                padding: '6px 12px',
-                borderRadius: '6px',
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}>
-                <span className="pulse-dot" style={{
-                  width: '6px',
-                  height: '6px',
-                  borderRadius: '50%',
-                  backgroundColor: 'var(--color-primary)',
-                  display: 'inline-block'
-                }} />
-                Auto-Override: {sysStatus.resolved_status.toUpperCase()}
-              </span>
-            )}
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500 }}>CURRENT STATE:</span>
-            <select 
-              value={sysStatus.current_status}
-              onChange={(e) => saveSettings({ status: e.target.value })}
-              className="glass-input"
-              style={{
-                background: 'rgba(124, 77, 255, 0.1)',
-                border: '1px solid var(--color-primary)',
-                color: '#fff',
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-            >
-              <option value="online">Online / Active</option>
-              <option value="busy">Busy / In Meeting</option>
-              <option value="focus">Deep Focus Mode</option>
-              <option value="sleeping">Sleeping Mode</option>
-              <option value="travel">Travel Mode</option>
-              <option value="vacation">Vacation Mode</option>
-            </select>
+            {/* Current State Indicator and Dropdown Selector */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {sysStatus.resolved_status && sysStatus.resolved_status !== sysStatus.current_status && (
+                <span className="badge" style={{
+                  backgroundColor: 'rgba(124, 77, 255, 0.15)',
+                  color: '#d8b4fe',
+                  border: '1px solid rgba(139, 92, 246, 0.4)',
+                  boxShadow: '0 0 10px rgba(139, 92, 246, 0.2)',
+                  fontSize: '0.8rem',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  <span className="pulse-dot" style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    backgroundColor: 'var(--color-primary)',
+                    display: 'inline-block'
+                  }} />
+                  Auto: {sysStatus.resolved_status.toUpperCase()}
+                </span>
+              )}
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500 }}>CURRENT STATE:</span>
+              <select 
+                value={sysStatus.current_status}
+                onChange={(e) => saveSettings({ status: e.target.value })}
+                className="glass-input"
+                style={{
+                  background: 'rgba(124, 77, 255, 0.1)',
+                  border: '1px solid var(--color-primary)',
+                  color: '#fff',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  padding: '6px 12px',
+                  borderRadius: '8px'
+                }}
+              >
+                <option value="online">Online / Active</option>
+                <option value="busy">Busy / In Meeting</option>
+                <option value="focus">Deep Focus Mode</option>
+                <option value="sleeping">Sleeping Mode</option>
+                <option value="travel">Travel Mode</option>
+                <option value="vacation">Vacation Mode</option>
+              </select>
+            </div>
           </div>
         </header>
 
