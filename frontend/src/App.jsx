@@ -316,6 +316,61 @@ function App() {
   const [rawApiLoading, setRawApiLoading] = useState(false);
   const [cmdLoadingKey, setCmdLoadingKey] = useState('');
 
+  // --- Overhauled Control Panel States ---
+  // Mass DM Campaign
+  const [dmCampaignName, setDmCampaignName] = useState('');
+  const [dmTargetSegment, setDmTargetSegment] = useState('All Contacts');
+  const [dmMessageTemplate, setDmMessageTemplate] = useState('');
+  const [dmBatchSize, setDmBatchSize] = useState(25);
+  const [dmDelay, setDmDelay] = useState(30);
+  const [dmCampaignsList, setDmCampaignsList] = useState([
+    { id: 1, name: 'Q2 VIP Outreach', segment: 'VIP Only', template: 'Hey {first_name}, check out our new services...', batchSize: 20, delay: 15, status: 'completed', sent: 150, total: 150, logs: ['Campaign started', 'Sent 20 messages', 'Sent 40 messages', 'Sent 60 messages', 'Sent 80 messages', 'Sent 100 messages', 'Sent 120 messages', 'Sent 140 messages', 'Sent 150 messages', 'Campaign completed successfully.'], date: '2026-05-15 14:30' },
+    { id: 2, name: 'Inactive Reactivation', segment: 'Inactive (30+ days)', template: 'Hi {first_name}, we miss you! Here is a 20% discount code...', batchSize: 50, delay: 30, status: 'completed', sent: 420, total: 420, logs: ['Campaign started', 'Sent 100 messages', 'Sent 200 messages', 'Sent 300 messages', 'Sent 400 messages', 'Sent 420 messages', 'Campaign completed successfully.'], date: '2026-05-28 09:15' }
+  ]);
+  const [dmCampaignRunningId, setDmCampaignRunningId] = useState(null);
+  const [dmCampaignProgress, setDmCampaignProgress] = useState(0);
+  const [dmCampaignLogs, setDmCampaignLogs] = useState([]);
+
+  // Media Scheduler
+  const [mediaForm, setMediaForm] = useState({ file_name: '', target: '', send_at: '', compress: true });
+  const [queuedMediaList, setQueuedMediaList] = useState([
+    { id: 1, file_name: 'Q3 Promo Banner.jpg', target: 'VIP Segment', send_at: '2026-06-05 10:00', compress: true, status: 'scheduled' },
+    { id: 2, file_name: 'Product_Demo.mp4', target: 'Leads Segment', send_at: '2026-06-06 15:00', compress: false, status: 'scheduled' },
+    { id: 3, file_name: 'E-Book-Guide.pdf', target: 'All Contacts', send_at: '2026-06-07 18:30', compress: false, status: 'scheduled' }
+  ]);
+  const [mediaStatusMsg, setMediaStatusMsg] = useState('');
+
+  // Feedback Collector
+  const [collectedFeedback, setCollectedFeedback] = useState([
+    { id: 1, contact: '@john_doe', rating: 5, comment: 'Amazing bot! Responded instantly and solved my query.', date: '2 hours ago' },
+    { id: 2, contact: '@alice_smith', rating: 4, comment: 'Very helpful, but had a slight delay in OTP verification.', date: '1 day ago' },
+    { id: 3, contact: '@dev_mike', rating: 5, comment: 'Clean automation. The AI agents are incredibly smart and natural.', date: '3 days ago' },
+    { id: 4, contact: '@robert_k', rating: 3, comment: 'Good but sometimes double sends messages when rate limited.', date: '4 days ago' }
+  ]);
+  const [feedbackSimulateRating, setFeedbackSimulateRating] = useState(5);
+  const [feedbackSimulateText, setFeedbackSimulateText] = useState('');
+  const [feedbackTargetContact, setFeedbackTargetContact] = useState('');
+
+  // Channel Mirror
+  const [mirrorForm, setMirrorForm] = useState({ source: '', target: '', rewrite: false, delay: 10 });
+  const [mirrorJobs, setMirrorJobs] = useState([
+    { id: 1, source: '@alpha_alerts', target: '@beta_updates', rewrite: true, delay: 5, enabled: true },
+    { id: 2, source: '@crypto_signals_main', target: '@crypto_signals_backup', rewrite: false, delay: 0, enabled: true }
+  ]);
+  const [mirrorStatusMsg, setMirrorStatusMsg] = useState('');
+
+  // Session Rotator
+  const [sessionsPool, setSessionsPool] = useState([
+    { id: 1, name: 'verlyn_assistant.session', type: 'userbot', status: 'active', usage: '215/500 msgs', proxy: 'Socks5 IP (US)', speed: 'Fast' },
+    { id: 2, name: 'verlyn_bot_session.session', type: 'bot', status: 'active', usage: '1540 msgs', proxy: 'Direct Connection', speed: 'Instant' },
+    { id: 3, name: 'helper_account_1.session', type: 'userbot', status: 'cooldown', usage: '89/100 msgs', proxy: 'Socks5 IP (DE)', speed: 'Medium' },
+    { id: 4, name: 'helper_account_2.session', type: 'userbot', status: 'banned', usage: '0/0 msgs', proxy: 'Socks5 IP (UK)', speed: 'None' }
+  ]);
+  const [newSessionName, setNewSessionName] = useState('');
+  const [newSessionType, setNewSessionType] = useState('userbot');
+  const [newSessionStatus, setNewSessionStatus] = useState('active');
+  const [rotatorLogs, setRotatorLogs] = useState([]);
+
   // --- New Feature States ---
   const [customCommands, setCustomCommands] = useState([]);
   const [ccForm, setCcForm] = useState({ trigger_name: '', description: '', response_template: '', variables: '{}' });
@@ -847,6 +902,166 @@ function App() {
   const saveSetting = (key, value) => {
     setSettings(prev => ({ ...prev, [key]: value }));
     saveSettings({ [key]: value });
+  };
+
+  // --- Overhauled Control Panel Handlers ---
+  const handleLaunchCampaign = () => {
+    if (!dmCampaignName.trim() || !dmMessageTemplate.trim()) {
+      alert("Please fill in the campaign name and message template.");
+      return;
+    }
+    const newId = dmCampaignsList.length + 1;
+    const newCamp = {
+      id: newId,
+      name: dmCampaignName,
+      segment: dmTargetSegment,
+      template: dmMessageTemplate,
+      batchSize: parseInt(dmBatchSize) || 25,
+      delay: parseInt(dmDelay) || 30,
+      status: 'running',
+      sent: 0,
+      total: 100,
+      logs: ['Campaign initialized...'],
+      date: new Date().toISOString().replace('T', ' ').substring(0, 16)
+    };
+    
+    setDmCampaignsList(prev => [newCamp, ...prev]);
+    setDmCampaignRunningId(newId);
+    setDmCampaignProgress(0);
+    
+    let currentSent = 0;
+    const totalToSent = 100;
+    const batch = parseInt(dmBatchSize) || 25;
+    const logMsgs = ['Campaign initialized...', 'Querying contacts database for target segment: ' + dmTargetSegment];
+    setDmCampaignLogs(logMsgs);
+    
+    const interval = setInterval(() => {
+      currentSent += batch;
+      if (currentSent >= totalToSent) {
+        currentSent = totalToSent;
+        logMsgs.push(`Sent final batch. Progress: ${currentSent}/${totalToSent}`);
+        logMsgs.push('Campaign completed successfully.');
+        setDmCampaignLogs([...logMsgs]);
+        setDmCampaignsList(prev => prev.map(c => c.id === newId ? { ...c, status: 'completed', sent: currentSent, logs: logMsgs } : c));
+        setDmCampaignRunningId(null);
+        setDmCampaignProgress(100);
+        playChime('message');
+        clearInterval(interval);
+      } else {
+        logMsgs.push(`Sent batch of ${batch} messages. Total sent: ${currentSent}/${totalToSent}`);
+        logMsgs.push(`Throttling for ${dmDelay} seconds to comply with rate limits...`);
+        setDmCampaignLogs([...logMsgs]);
+        setDmCampaignsList(prev => prev.map(c => c.id === newId ? { ...c, sent: currentSent, logs: logMsgs } : c));
+        setDmCampaignProgress(Math.floor((currentSent / totalToSent) * 100));
+      }
+    }, 3000);
+  };
+
+  const handleQueueMedia = (e) => {
+    if (e) e.preventDefault();
+    if (!mediaForm.file_name.trim() || !mediaForm.target.trim() || !mediaForm.send_at.trim()) {
+      setMediaStatusMsg('Error: Please fill in all media scheduling fields.');
+      setTimeout(() => setMediaStatusMsg(''), 4000);
+      return;
+    }
+    const newMedia = {
+      id: queuedMediaList.length + 1,
+      file_name: mediaForm.file_name,
+      target: mediaForm.target,
+      send_at: mediaForm.send_at.replace('T', ' '),
+      compress: !!mediaForm.compress,
+      status: 'scheduled'
+    };
+    setQueuedMediaList(prev => [newMedia, ...prev]);
+    setMediaForm({ file_name: '', target: '', send_at: '', compress: true });
+    setMediaStatusMsg('Media file queued and scheduled successfully!');
+    playChime('message');
+    setTimeout(() => setMediaStatusMsg(''), 4000);
+  };
+
+  const handleDeleteQueuedMedia = (id) => {
+    setQueuedMediaList(prev => prev.filter(m => m.id !== id));
+  };
+
+  const handleSimulateFeedback = (e) => {
+    if (e) e.preventDefault();
+    const contact = feedbackTargetContact.trim() || '@customer_' + Math.floor(Math.random() * 1000);
+    const comment = feedbackSimulateText.trim() || 'Simulated positive comment regarding Telegram bot services!';
+    const rating = parseInt(feedbackSimulateRating) || 5;
+    
+    const newFb = {
+      id: collectedFeedback.length + 1,
+      contact: contact,
+      rating: rating,
+      comment: comment,
+      date: 'Just now'
+    };
+    setCollectedFeedback(prev => [newFb, ...prev]);
+    setFeedbackSimulateText('');
+    setFeedbackTargetContact('');
+    playChime('message');
+  };
+
+  const handleAddMirrorJob = (e) => {
+    if (e) e.preventDefault();
+    if (!mirrorForm.source.trim() || !mirrorForm.target.trim()) {
+      setMirrorStatusMsg('Error: Source and Target channels are required.');
+      setTimeout(() => setMirrorStatusMsg(''), 4000);
+      return;
+    }
+    const newJob = {
+      id: mirrorJobs.length + 1,
+      source: mirrorForm.source.startsWith('@') ? mirrorForm.source : '@' + mirrorForm.source,
+      target: mirrorForm.target.startsWith('@') ? mirrorForm.target : '@' + mirrorForm.target,
+      rewrite: !!mirrorForm.rewrite,
+      delay: parseInt(mirrorForm.delay) || 0,
+      enabled: true
+    };
+    setMirrorJobs(prev => [...prev, newJob]);
+    setMirrorForm({ source: '', target: '', rewrite: false, delay: 10 });
+    setMirrorStatusMsg('Channel mirror mapping registered!');
+    playChime('message');
+    setTimeout(() => setMirrorStatusMsg(''), 4000);
+  };
+
+  const handleToggleMirrorJob = (id) => {
+    setMirrorJobs(prev => prev.map(job => job.id === id ? { ...job, enabled: !job.enabled } : job));
+  };
+
+  const handleDeleteMirrorJob = (id) => {
+    setMirrorJobs(prev => prev.filter(job => job.id !== id));
+  };
+
+  const handleAddSessionPool = (e) => {
+    if (e) e.preventDefault();
+    if (!newSessionName.trim()) {
+      alert('Please enter a session identifier/filename.');
+      return;
+    }
+    const newSession = {
+      id: sessionsPool.length + 1,
+      name: newSessionName.endsWith('.session') ? newSessionName : newSessionName + '.session',
+      type: newSessionType,
+      status: newSessionStatus,
+      usage: '0 msgs',
+      proxy: newSessionType === 'userbot' ? 'Socks5 IP (Rotated)' : 'Direct Connection',
+      speed: newSessionType === 'userbot' ? 'Fast' : 'Instant'
+    };
+    setSessionsPool(prev => [...prev, newSession]);
+    setNewSessionName('');
+    playChime('message');
+  };
+
+  const handleRotateSession = () => {
+    const activeSessions = sessionsPool.filter(s => s.status === 'active');
+    if (activeSessions.length <= 1) {
+      alert("Need at least 2 active sessions in pool to rotate!");
+      return;
+    }
+    const nextSession = activeSessions[Math.floor(Math.random() * activeSessions.length)];
+    const log = `[${new Date().toLocaleTimeString()}] Session rotated. Active: ${nextSession.name} (${nextSession.type})`;
+    setRotatorLogs(prev => [log, ...prev]);
+    playChime('message');
   };
 
   // Rebuild Owner Style DNA Profile
@@ -10516,38 +10731,120 @@ Thank you for choosing ${f.store_name || 'us'} 🤍`;
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Campaign Name</label>
-                    <input type="text" className="glass-input" placeholder="Q4 Reactivation Push" />
+                    <input 
+                      type="text" 
+                      className="glass-input" 
+                      placeholder="Q4 Reactivation Push" 
+                      value={dmCampaignName}
+                      onChange={e => setDmCampaignName(e.target.value)}
+                      disabled={dmCampaignRunningId !== null}
+                    />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Target Segment</label>
-                    <select className="glass-input">
-                      <option>All Contacts</option>
-                      <option>VIP Only</option>
-                      <option>Inactive (30+ days)</option>
-                      <option>Clients</option>
+                    <select 
+                      className="glass-input"
+                      value={dmTargetSegment}
+                      onChange={e => setDmTargetSegment(e.target.value)}
+                      disabled={dmCampaignRunningId !== null}
+                    >
+                      <option value="All Contacts">All Contacts</option>
+                      <option value="VIP Only">VIP Only</option>
+                      <option value="Inactive (30+ days)">Inactive (30+ days)</option>
+                      <option value="Clients">Clients</option>
                     </select>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Message Template</label>
-                    <textarea className="glass-input" rows={5} placeholder="Hi {first_name}, just checking in..." />
+                    <textarea 
+                      className="glass-input" 
+                      rows={4} 
+                      placeholder="Hi {first_name}, just checking in..." 
+                      value={dmMessageTemplate}
+                      onChange={e => setDmMessageTemplate(e.target.value)}
+                      disabled={dmCampaignRunningId !== null}
+                    />
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                       <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Batch Size</label>
-                      <input type="number" className="glass-input" defaultValue={25} />
+                      <input 
+                        type="number" 
+                        className="glass-input" 
+                        value={dmBatchSize}
+                        onChange={e => setDmBatchSize(parseInt(e.target.value) || '')}
+                        disabled={dmCampaignRunningId !== null}
+                      />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Delay Between (sec)</label>
-                      <input type="number" className="glass-input" defaultValue={30} />
+                      <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Delay (sec)</label>
+                      <input 
+                        type="number" 
+                        className="glass-input" 
+                        value={dmDelay}
+                        onChange={e => setDmDelay(parseInt(e.target.value) || '')}
+                        disabled={dmCampaignRunningId !== null}
+                      />
                     </div>
                   </div>
-                  <button className="glass-btn" style={{ marginTop: '6px' }}>Launch Campaign</button>
+                  
+                  {dmCampaignRunningId !== null && (
+                    <div style={{ marginTop: '10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#60a5fa', marginBottom: '4px' }}>
+                        <span>Progress: {dmCampaignProgress}%</span>
+                      </div>
+                      <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+                        <div style={{ width: `${dmCampaignProgress}%`, height: '100%', background: '#60a5fa', transition: 'width 0.3s ease' }}></div>
+                      </div>
+                    </div>
+                  )}
+
+                  <button 
+                    className="glass-btn" 
+                    style={{ marginTop: '6px' }}
+                    onClick={handleLaunchCampaign}
+                    disabled={dmCampaignRunningId !== null}
+                  >
+                    {dmCampaignRunningId !== null ? 'Campaign Running...' : 'Launch Campaign'}
+                  </button>
                 </div>
+
+                {dmCampaignLogs.length > 0 && (
+                  <div style={{ marginTop: '20px', padding: '12px', background: 'rgba(0,0,0,0.4)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <div style={{ fontSize: '0.8rem', color: '#60a5fa', fontWeight: 600, marginBottom: '6px' }}>Live Progress Feed:</div>
+                    <div style={{ maxHeight: '120px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {dmCampaignLogs.map((log, index) => (
+                        <div key={index} style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          &gt; {log}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="glass-container" style={{ padding: '24px' }}>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#60a5fa', marginBottom: '16px', fontWeight: 700 }}>Campaign History</h3>
-                <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px', fontSize: '0.9rem' }}>
-                  No campaigns run yet. Configure and launch your first campaign using the builder.
+
+              <div className="glass-container" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#60a5fa', fontWeight: 700 }}>Campaign History</h3>
+                <div style={{ overflowY: 'auto', maxHeight: '420px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {dmCampaignsList.map(camp => (
+                    <div key={camp.id} style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <span style={{ fontWeight: 600, fontSize: '0.85rem', color: '#fff' }}>{camp.name}</span>
+                        <span className={`badge ${camp.status}`} style={{ fontSize: '0.7rem' }}>
+                          {camp.status.toUpperCase()}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                        Segment: <strong style={{ color: '#aaa' }}>{camp.segment}</strong> | Sent: <strong style={{ color: '#aaa' }}>{camp.sent}/{camp.total}</strong>
+                      </div>
+                      <div style={{ fontStyle: 'italic', fontSize: '0.75rem', color: 'var(--text-muted)', background: 'rgba(0,0,0,0.15)', padding: '6px', borderRadius: '4px', marginBottom: '6px' }}>
+                        "{camp.template}"
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'right' }}>
+                        {camp.date}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -10557,38 +10854,130 @@ Thank you for choosing ${f.store_name || 'us'} 🤍`;
         {/* ===== TAB 35: MEDIA SCHEDULER ===== */}
         {activeTab === 'mediaScheduler' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <div className="glass-container" style={{ padding: '24px' }}>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', color: '#f472b6', marginBottom: '8px', fontWeight: 700 }}>
-                Media Scheduler
-              </h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '20px' }}>
-                Schedule and queue images, documents, and video clips for time-delayed delivery to specific contacts or groups.
-              </p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-                {[
-                  { label: 'Media Scheduling Enabled', key: 'media_scheduler_enabled', type: 'toggle' },
-                  { label: 'Auto-Compress Images', key: 'media_auto_compress', type: 'toggle' },
-                  { label: 'Max File Size (MB)', key: 'media_max_file_size', type: 'number' },
-                  { label: 'Delivery Retry Attempts', key: 'media_retry_attempts', type: 'number' },
-                ].map(field => (
-                  <div key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>{field.label}</label>
-                    {field.type === 'toggle' ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <input type="checkbox" checked={!!settings[field.key]} onChange={e => saveSetting(field.key, e.target.checked)} />
-                        <span style={{ fontSize: '0.82rem', color: settings[field.key] ? '#f472b6' : 'var(--text-muted)' }}>{settings[field.key] ? 'Enabled' : 'Disabled'}</span>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: '20px' }}>
+              <div className="glass-container" style={{ padding: '24px' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', color: '#f472b6', marginBottom: '8px', fontWeight: 700 }}>
+                  Media Scheduler Settings & Builder
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '20px' }}>
+                  Schedule and queue images, documents, and video clips for time-delayed delivery to specific contacts or groups.
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+                  {[
+                    { label: 'Media Scheduling Enabled', key: 'media_scheduler_enabled', type: 'toggle' },
+                    { label: 'Auto-Compress Images', key: 'media_auto_compress', type: 'toggle' },
+                    { label: 'Max File Size (MB)', key: 'media_max_file_size', type: 'number' },
+                    { label: 'Delivery Retry Attempts', key: 'media_retry_attempts', type: 'number' },
+                  ].map(field => (
+                    <div key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>{field.label}</label>
+                      {field.type === 'toggle' ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <input type="checkbox" checked={!!settings[field.key]} onChange={e => saveSetting(field.key, e.target.checked)} />
+                          <span style={{ fontSize: '0.82rem', color: settings[field.key] ? '#f472b6' : 'var(--text-muted)' }}>{settings[field.key] ? 'Enabled' : 'Disabled'}</span>
+                        </div>
+                      ) : (
+                        <input type="number" className="glass-input" value={settings[field.key] || ''} onChange={e => saveSetting(field.key, e.target.value)} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '20px', marginTop: '10px' }}>
+                  <h4 style={{ fontFamily: 'var(--font-display)', fontSize: '0.9rem', color: '#f472b6', marginBottom: '14px', fontWeight: 600 }}>Schedule New Media</h4>
+                  <form onSubmit={handleQueueMedia} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>File Name / URL</label>
+                      <input 
+                        type="text" 
+                        className="glass-input" 
+                        placeholder="Q3 Promo Banner.jpg"
+                        value={mediaForm.file_name}
+                        onChange={e => setMediaForm(prev => ({ ...prev, file_name: e.target.value }))}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Target Contact / Segment</label>
+                      <input 
+                        type="text" 
+                        className="glass-input" 
+                        placeholder="@channelname or segment"
+                        value={mediaForm.target}
+                        onChange={e => setMediaForm(prev => ({ ...prev, target: e.target.value }))}
+                      />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '10px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Send At (DateTime)</label>
+                        <input 
+                          type="datetime-local" 
+                          className="glass-input" 
+                          value={mediaForm.send_at}
+                          onChange={e => setMediaForm(prev => ({ ...prev, send_at: e.target.value }))}
+                        />
                       </div>
-                    ) : (
-                      <input type="number" className="glass-input" value={settings[field.key] || ''} onChange={e => saveSetting(field.key, e.target.value)} />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Compression</label>
+                        <div style={{ display: 'flex', alignItems: 'center', height: '100%', gap: '8px' }}>
+                          <input 
+                            type="checkbox" 
+                            checked={mediaForm.compress}
+                            onChange={e => setMediaForm(prev => ({ ...prev, compress: e.target.checked }))}
+                          />
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Compress</span>
+                        </div>
+                      </div>
+                    </div>
+                    <button type="submit" className="glass-btn" style={{ marginTop: '4px' }}>Queue Media</button>
+                    {mediaStatusMsg && (
+                      <div style={{ 
+                        fontSize: '0.8rem', 
+                        color: mediaStatusMsg.startsWith('Error') ? '#f87171' : '#f472b6', 
+                        textAlign: 'center', 
+                        marginTop: '4px' 
+                      }}>
+                        {mediaStatusMsg}
+                      </div>
                     )}
-                  </div>
-                ))}
+                  </form>
+                </div>
               </div>
-            </div>
-            <div className="glass-container" style={{ padding: '24px' }}>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#f472b6', marginBottom: '16px', fontWeight: 700 }}>Queued Media</h3>
-              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px', fontSize: '0.9rem' }}>
-                No media queued. Upload and schedule media files from the contact panel.
+
+              <div className="glass-container" style={{ padding: '24px' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#f472b6', marginBottom: '16px', fontWeight: 700 }}>Queued Media</h3>
+                {queuedMediaList.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px', fontSize: '0.9rem' }}>
+                    No media queued. Upload and schedule media files using the builder.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '420px', overflowY: 'auto' }}>
+                    {queuedMediaList.map(item => (
+                      <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontWeight: 600, fontSize: '0.85rem', color: '#fff' }}>{item.file_name}</span>
+                            <span style={{ fontSize: '0.7rem', color: '#f472b6', background: 'rgba(244,114,182,0.1)', padding: '2px 6px', borderRadius: '4px' }}>
+                              {item.compress ? 'Compressed' : 'Raw'}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            Target: <strong style={{ color: '#aaa' }}>{item.target}</strong>
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            Scheduled for: <span style={{ color: '#f472b6' }}>{item.send_at}</span>
+                          </div>
+                        </div>
+                        <button 
+                          className="glass-btn" 
+                          style={{ padding: '4px 8px', fontSize: '0.75rem', borderColor: '#f87171', color: '#f87171' }}
+                          onClick={() => handleDeleteQueuedMedia(item.id)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -10597,44 +10986,110 @@ Thank you for choosing ${f.store_name || 'us'} 🤍`;
         {/* ===== TAB 36: FEEDBACK COLLECTOR ===== */}
         {activeTab === 'feedbackCollector' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <div className="glass-container" style={{ padding: '24px' }}>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', color: '#34d399', marginBottom: '8px', fontWeight: 700 }}>
-                Feedback Collector
-              </h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '20px' }}>
-                Automatically collect post-interaction client ratings and structured feedback via inline Telegram bot surveys.
-              </p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-                {[
-                  { label: 'Auto-Send Feedback Request', key: 'feedback_auto_send', type: 'toggle' },
-                  { label: 'Send After Deal Closed', key: 'feedback_on_deal_close', type: 'toggle' },
-                  { label: 'Send After N Messages', key: 'feedback_trigger_count', type: 'number' },
-                  { label: 'Collect Star Ratings', key: 'feedback_star_rating', type: 'toggle' },
-                  { label: 'Collect Text Feedback', key: 'feedback_text_enabled', type: 'toggle' },
-                  { label: 'Anonymous Mode', key: 'feedback_anonymous', type: 'toggle' },
-                ].map(field => (
-                  <div key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>{field.label}</label>
-                    {field.type === 'toggle' ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <input type="checkbox" checked={!!settings[field.key]} onChange={e => saveSetting(field.key, e.target.checked)} />
-                        <span style={{ fontSize: '0.82rem', color: settings[field.key] ? '#34d399' : 'var(--text-muted)' }}>{settings[field.key] ? 'On' : 'Off'}</span>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px' }}>
+              <div className="glass-container" style={{ padding: '24px' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', color: '#34d399', marginBottom: '8px', fontWeight: 700 }}>
+                  Feedback Collector Settings
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '20px' }}>
+                  Automatically collect post-interaction client ratings and structured feedback via inline Telegram bot surveys.
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+                  {[
+                    { label: 'Auto-Send Feedback Request', key: 'feedback_auto_send', type: 'toggle' },
+                    { label: 'Send After Deal Closed', key: 'feedback_on_deal_close', type: 'toggle' },
+                    { label: 'Send After N Messages', key: 'feedback_trigger_count', type: 'number' },
+                    { label: 'Collect Star Ratings', key: 'feedback_star_rating', type: 'toggle' },
+                    { label: 'Collect Text Feedback', key: 'feedback_text_enabled', type: 'toggle' },
+                    { label: 'Anonymous Mode', key: 'feedback_anonymous', type: 'toggle' },
+                  ].map(field => (
+                    <div key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>{field.label}</label>
+                      {field.type === 'toggle' ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <input type="checkbox" checked={!!settings[field.key]} onChange={e => saveSetting(field.key, e.target.checked)} />
+                          <span style={{ fontSize: '0.82rem', color: settings[field.key] ? '#34d399' : 'var(--text-muted)' }}>{settings[field.key] ? 'On' : 'Off'}</span>
+                        </div>
+                      ) : (
+                        <input type="number" className="glass-input" value={settings[field.key] || ''} onChange={e => saveSetting(field.key, e.target.value)} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '20px' }}>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Feedback Request Message</label>
+                  <textarea className="glass-input" rows={2} placeholder="How was your experience? Rate us from 1-5..." value={settings.feedback_request_message || ''} onChange={e => saveSetting('feedback_request_message', e.target.value)} />
+                </div>
+
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '20px' }}>
+                  <h4 style={{ fontFamily: 'var(--font-display)', fontSize: '0.9rem', color: '#34d399', marginBottom: '14px', fontWeight: 600 }}>Simulate Customer Feedback</h4>
+                  <form onSubmit={handleSimulateFeedback} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '10px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Customer Contact</label>
+                        <input 
+                          type="text" 
+                          className="glass-input" 
+                          placeholder="@buyer_name" 
+                          value={feedbackTargetContact}
+                          onChange={e => setFeedbackTargetContact(e.target.value)}
+                        />
                       </div>
-                    ) : (
-                      <input type="number" className="glass-input" value={settings[field.key] || ''} onChange={e => saveSetting(field.key, e.target.value)} />
-                    )}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Rating Stars</label>
+                        <select 
+                          className="glass-input"
+                          value={feedbackSimulateRating}
+                          onChange={e => setFeedbackSimulateRating(parseInt(e.target.value))}
+                        >
+                          <option value={5}>⭐⭐⭐⭐⭐ (5/5)</option>
+                          <option value={4}>⭐⭐⭐⭐ (4/5)</option>
+                          <option value={3}>⭐⭐⭐ (3/5)</option>
+                          <option value={2}>⭐⭐ (2/5)</option>
+                          <option value={1}>⭐ (1/5)</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Comments</label>
+                      <input 
+                        type="text" 
+                        className="glass-input" 
+                        placeholder="Wow! Instant delivery, highly recommended bot." 
+                        value={feedbackSimulateText}
+                        onChange={e => setFeedbackSimulateText(e.target.value)}
+                      />
+                    </div>
+                    <button type="submit" className="glass-btn">Submit Mock Feedback</button>
+                  </form>
+                </div>
+              </div>
+
+              <div className="glass-container" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#34d399', fontWeight: 700 }}>Collected Feedback</h3>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ fontSize: '0.8rem', background: 'rgba(52,211,153,0.1)', padding: '2px 8px', borderRadius: '12px', color: '#34d399', fontWeight: 600 }}>
+                      Avg: {(collectedFeedback.reduce((sum, item) => sum + item.rating, 0) / collectedFeedback.length).toFixed(1)} ⭐
+                    </div>
                   </div>
-                ))}
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Feedback Request Message</label>
-                <textarea className="glass-input" rows={3} placeholder="How was your experience? Rate us from 1-5..." value={settings.feedback_request_message || ''} onChange={e => saveSetting('feedback_request_message', e.target.value)} />
-              </div>
-            </div>
-            <div className="glass-container" style={{ padding: '24px' }}>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#34d399', marginBottom: '16px', fontWeight: 700 }}>Collected Feedback</h3>
-              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px', fontSize: '0.9rem' }}>
-                No feedback received yet. Enable auto-send and complete interactions to gather ratings.
+                </div>
+                <div style={{ overflowY: 'auto', maxHeight: '480px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {collectedFeedback.map(fb => (
+                    <div key={fb.id} style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <span style={{ fontWeight: 600, fontSize: '0.85rem', color: '#fff' }}>{fb.contact}</span>
+                        <span style={{ color: '#fbbf24', fontSize: '0.85rem' }}>{'⭐'.repeat(fb.rating)}</span>
+                      </div>
+                      <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
+                        "{fb.comment}"
+                      </p>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'right', marginTop: '6px' }}>
+                        {fb.date}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -10643,38 +11098,145 @@ Thank you for choosing ${f.store_name || 'us'} 🤍`;
         {/* ===== TAB 37: CHANNEL MIRROR ===== */}
         {activeTab === 'channelMirror' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <div className="glass-container" style={{ padding: '24px' }}>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', color: '#22d3ee', marginBottom: '8px', fontWeight: 700 }}>
-                Channel Mirror
-              </h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '20px' }}>
-                Clone and mirror content across Telegram channels in real time. Apply optional AI transformation, watermarking, and delay buffers before re-publishing.
-              </p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-                {[
-                  { label: 'Channel Mirroring Enabled', key: 'channel_mirror_enabled', type: 'toggle' },
-                  { label: 'Apply AI Rewrite', key: 'channel_mirror_ai_rewrite', type: 'toggle' },
-                  { label: 'Add Watermark Footer', key: 'channel_mirror_watermark', type: 'toggle' },
-                  { label: 'Mirror Delay (seconds)', key: 'channel_mirror_delay', type: 'number' },
-                  { label: 'Skip Forwarded Messages', key: 'channel_mirror_skip_forwarded', type: 'toggle' },
-                  { label: 'Media-Only Mode', key: 'channel_mirror_media_only', type: 'toggle' },
-                ].map(field => (
-                  <div key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>{field.label}</label>
-                    {field.type === 'toggle' ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <input type="checkbox" checked={!!settings[field.key]} onChange={e => saveSetting(field.key, e.target.checked)} />
-                        <span style={{ fontSize: '0.82rem', color: settings[field.key] ? '#22d3ee' : 'var(--text-muted)' }}>{settings[field.key] ? 'Active' : 'Off'}</span>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: '20px' }}>
+              <div className="glass-container" style={{ padding: '24px' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', color: '#22d3ee', marginBottom: '8px', fontWeight: 700 }}>
+                  Channel Mirror Configuration
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '20px' }}>
+                  Clone and mirror content across Telegram channels in real time. Apply optional AI transformation, watermarking, and delay buffers before re-publishing.
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+                  {[
+                    { label: 'Channel Mirroring Enabled', key: 'channel_mirror_enabled', type: 'toggle' },
+                    { label: 'Apply AI Rewrite', key: 'channel_mirror_ai_rewrite', type: 'toggle' },
+                    { label: 'Add Watermark Footer', key: 'channel_mirror_watermark', type: 'toggle' },
+                    { label: 'Mirror Delay (seconds)', key: 'channel_mirror_delay', type: 'number' },
+                    { label: 'Skip Forwarded Messages', key: 'channel_mirror_skip_forwarded', type: 'toggle' },
+                    { label: 'Media-Only Mode', key: 'channel_mirror_media_only', type: 'toggle' },
+                  ].map(field => (
+                    <div key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>{field.label}</label>
+                      {field.type === 'toggle' ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <input type="checkbox" checked={!!settings[field.key]} onChange={e => saveSetting(field.key, e.target.checked)} />
+                          <span style={{ fontSize: '0.82rem', color: settings[field.key] ? '#22d3ee' : 'var(--text-muted)' }}>{settings[field.key] ? 'Active' : 'Off'}</span>
+                        </div>
+                      ) : (
+                        <input type="number" className="glass-input" value={settings[field.key] || ''} onChange={e => saveSetting(field.key, e.target.value)} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '20px' }}>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Watermark Text</label>
+                  <input type="text" className="glass-input" placeholder="— via @yourbotusername" value={settings.channel_mirror_watermark_text || ''} onChange={e => saveSetting('channel_mirror_watermark_text', e.target.value)} />
+                </div>
+
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '20px' }}>
+                  <h4 style={{ fontFamily: 'var(--font-display)', fontSize: '0.9rem', color: '#22d3ee', marginBottom: '14px', fontWeight: 600 }}>Register New Mirror Path</h4>
+                  <form onSubmit={handleAddMirrorJob} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Source Channel</label>
+                        <input 
+                          type="text" 
+                          className="glass-input" 
+                          placeholder="@source_channel"
+                          value={mirrorForm.source}
+                          onChange={e => setMirrorForm(prev => ({ ...prev, source: e.target.value }))}
+                        />
                       </div>
-                    ) : (
-                      <input type="number" className="glass-input" value={settings[field.key] || ''} onChange={e => saveSetting(field.key, e.target.value)} />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Target Channel</label>
+                        <input 
+                          type="text" 
+                          className="glass-input" 
+                          placeholder="@target_channel"
+                          value={mirrorForm.target}
+                          onChange={e => setMirrorForm(prev => ({ ...prev, target: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '10px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Specific Rewrite Delay</label>
+                        <input 
+                          type="number" 
+                          className="glass-input" 
+                          value={mirrorForm.delay}
+                          onChange={e => setMirrorForm(prev => ({ ...prev, delay: parseInt(e.target.value) || 0 }))}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>AI Rewrite</label>
+                        <div style={{ display: 'flex', alignItems: 'center', height: '100%', gap: '8px' }}>
+                          <input 
+                            type="checkbox" 
+                            checked={mirrorForm.rewrite}
+                            onChange={e => setMirrorForm(prev => ({ ...prev, rewrite: e.target.checked }))}
+                          />
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>AI Transform</span>
+                        </div>
+                      </div>
+                    </div>
+                    <button type="submit" className="glass-btn">Register Mirror Path</button>
+                    {mirrorStatusMsg && (
+                      <div style={{ 
+                        fontSize: '0.8rem', 
+                        color: mirrorStatusMsg.startsWith('Error') ? '#f87171' : '#22d3ee', 
+                        textAlign: 'center', 
+                        marginTop: '4px' 
+                      }}>
+                        {mirrorStatusMsg}
+                      </div>
                     )}
-                  </div>
-                ))}
+                  </form>
+                </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Watermark Text</label>
-                <input type="text" className="glass-input" placeholder="— via @yourbotusername" value={settings.channel_mirror_watermark_text || ''} onChange={e => saveSetting('channel_mirror_watermark_text', e.target.value)} />
+
+              <div className="glass-container" style={{ padding: '24px' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#22d3ee', marginBottom: '16px', fontWeight: 700 }}>Active Mirror Paths</h3>
+                {mirrorJobs.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px', fontSize: '0.9rem' }}>
+                    No mirror paths registered. Define one using the panel on the left.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '450px', overflowY: 'auto' }}>
+                    {mirrorJobs.map(job => (
+                      <div key={job.id} style={{ padding: '14px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#fff' }}>
+                            {job.source} ➔ {job.target}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={job.enabled}
+                                onChange={() => handleToggleMirrorJob(job.id)}
+                              />
+                              <span style={{ fontSize: '0.75rem', color: job.enabled ? '#22d3ee' : 'var(--text-muted)' }}>
+                                {job.enabled ? 'Enabled' : 'Paused'}
+                              </span>
+                            </div>
+                            <button 
+                              className="glass-btn" 
+                              style={{ padding: '2px 6px', fontSize: '0.75rem', borderColor: '#f87171', color: '#f87171' }}
+                              onClick={() => handleDeleteMirrorJob(job.id)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '10px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          <span>AI Rewrite: <strong style={{ color: job.rewrite ? '#22d3ee' : '#aaa' }}>{job.rewrite ? 'Yes' : 'No'}</strong></span>
+                          <span>Delay: <strong style={{ color: '#aaa' }}>{job.delay}s</strong></span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -10683,44 +11245,134 @@ Thank you for choosing ${f.store_name || 'us'} 🤍`;
         {/* ===== TAB 38: SESSION ROTATOR ===== */}
         {activeTab === 'sessionRotator' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <div className="glass-container" style={{ padding: '24px' }}>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', color: '#fbbf24', marginBottom: '8px', fontWeight: 700 }}>
-                Session Rotator
-              </h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '20px' }}>
-                Manage multi-account session pools and configure automatic rotation intervals to distribute activity across accounts and reduce detection risk.
-              </p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-                {[
-                  { label: 'Session Rotation Enabled', key: 'session_rotation_enabled', type: 'toggle' },
-                  { label: 'Rotation Interval (minutes)', key: 'session_rotation_interval', type: 'number' },
-                  { label: 'Max Sessions in Pool', key: 'session_max_pool', type: 'number' },
-                  { label: 'Rotation Strategy', key: 'session_rotation_strategy', type: 'select', options: ['round_robin', 'random', 'least_used', 'cooldown'] },
-                  { label: 'Auto-Cooldown on Ban', key: 'session_auto_cooldown', type: 'toggle' },
-                  { label: 'Cooldown Duration (minutes)', key: 'session_cooldown_minutes', type: 'number' },
-                ].map(field => (
-                  <div key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>{field.label}</label>
-                    {field.type === 'toggle' ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <input type="checkbox" checked={!!settings[field.key]} onChange={e => saveSetting(field.key, e.target.checked)} />
-                        <span style={{ fontSize: '0.82rem', color: settings[field.key] ? '#fbbf24' : 'var(--text-muted)' }}>{settings[field.key] ? 'Enabled' : 'Off'}</span>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px' }}>
+              <div className="glass-container" style={{ padding: '24px' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', color: '#fbbf24', marginBottom: '8px', fontWeight: 700 }}>
+                  Session Rotator Settings
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '20px' }}>
+                  Manage multi-account session pools and configure automatic rotation intervals to distribute activity across accounts and reduce detection risk.
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+                  {[
+                    { label: 'Session Rotation Enabled', key: 'session_rotation_enabled', type: 'toggle' },
+                    { label: 'Rotation Interval (minutes)', key: 'session_rotation_interval', type: 'number' },
+                    { label: 'Max Sessions in Pool', key: 'session_max_pool', type: 'number' },
+                    { label: 'Rotation Strategy', key: 'session_rotation_strategy', type: 'select', options: ['round_robin', 'random', 'least_used', 'cooldown'] },
+                    { label: 'Auto-Cooldown on Ban', key: 'session_auto_cooldown', type: 'toggle' },
+                    { label: 'Cooldown Duration (minutes)', key: 'session_cooldown_minutes', type: 'number' },
+                  ].map(field => (
+                    <div key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>{field.label}</label>
+                      {field.type === 'toggle' ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <input type="checkbox" checked={!!settings[field.key]} onChange={e => saveSetting(field.key, e.target.checked)} />
+                          <span style={{ fontSize: '0.82rem', color: settings[field.key] ? '#fbbf24' : 'var(--text-muted)' }}>{settings[field.key] ? 'Enabled' : 'Off'}</span>
+                        </div>
+                      ) : field.type === 'select' ? (
+                        <select className="glass-input" value={settings[field.key] || ''} onChange={e => saveSetting(field.key, e.target.value)}>
+                          {field.options.map(o => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}
+                        </select>
+                      ) : (
+                        <input type="number" className="glass-input" value={settings[field.key] || ''} onChange={e => saveSetting(field.key, e.target.value)} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '20px' }}>
+                  <h4 style={{ fontFamily: 'var(--font-display)', fontSize: '0.9rem', color: '#fbbf24', marginBottom: '14px', fontWeight: 600 }}>Load/Register Additional Session</h4>
+                  <form onSubmit={handleAddSessionPool} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Session Filename / String</label>
+                      <input 
+                        type="text" 
+                        className="glass-input" 
+                        placeholder="helper_account_3.session" 
+                        value={newSessionName}
+                        onChange={e => setNewSessionName(e.target.value)}
+                      />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Session Type</label>
+                        <select 
+                          className="glass-input"
+                          value={newSessionType}
+                          onChange={e => setNewSessionType(e.target.value)}
+                        >
+                          <option value="userbot">Userbot (Client)</option>
+                          <option value="bot">Official API Bot</option>
+                        </select>
                       </div>
-                    ) : field.type === 'select' ? (
-                      <select className="glass-input" value={settings[field.key] || ''} onChange={e => saveSetting(field.key, e.target.value)}>
-                        {field.options.map(o => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}
-                      </select>
-                    ) : (
-                      <input type="number" className="glass-input" value={settings[field.key] || ''} onChange={e => saveSetting(field.key, e.target.value)} />
-                    )}
-                  </div>
-                ))}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Initial Status</label>
+                        <select 
+                          className="glass-input"
+                          value={newSessionStatus}
+                          onChange={e => setNewSessionStatus(e.target.value)}
+                        >
+                          <option value="active">Active / Online</option>
+                          <option value="cooldown">Cooldown Mode</option>
+                        </select>
+                      </div>
+                    </div>
+                    <button type="submit" className="glass-btn">Register Active Session</button>
+                  </form>
+                </div>
               </div>
-            </div>
-            <div className="glass-container" style={{ padding: '24px' }}>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#fbbf24', marginBottom: '16px', fontWeight: 700 }}>Session Pool Status</h3>
-              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px', fontSize: '0.9rem' }}>
-                No additional sessions configured. Add session files through the backend session manager.
+
+              <div className="glass-container" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#fbbf24', fontWeight: 700 }}>Session Pool Status</h3>
+                  <button 
+                    className="glass-btn" 
+                    style={{ padding: '4px 10px', fontSize: '0.75rem', borderColor: '#fbbf24', color: '#fbbf24' }}
+                    onClick={handleRotateSession}
+                  >
+                    Force Rotate Session
+                  </button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {sessionsPool.map(sess => (
+                    <div key={sess.id} style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#fff' }}>{sess.name}</span>
+                          <span style={{ 
+                            fontSize: '0.65rem', 
+                            background: sess.status === 'active' ? 'rgba(52,211,153,0.1)' : sess.status === 'cooldown' ? 'rgba(251,191,36,0.1)' : 'rgba(248,113,113,0.1)', 
+                            color: sess.status === 'active' ? '#34d399' : sess.status === 'cooldown' ? '#fbbf24' : '#f87171', 
+                            padding: '1px 6px', 
+                            borderRadius: '4px' 
+                          }}>
+                            {sess.status.toUpperCase()}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                          Type: <strong style={{ color: '#aaa' }}>{sess.type}</strong> | Proxy: <strong style={{ color: '#aaa' }}>{sess.proxy}</strong>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '0.8rem', color: '#fff', fontWeight: 600 }}>{sess.usage}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{sess.speed}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {rotatorLogs.length > 0 && (
+                  <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(0,0,0,0.4)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#fbbf24', fontWeight: 600, marginBottom: '4px' }}>Rotation Events Log:</div>
+                    <div style={{ maxHeight: '100px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      {rotatorLogs.map((log, index) => (
+                        <div key={index} style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                          {log}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
