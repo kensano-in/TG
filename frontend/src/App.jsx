@@ -8086,17 +8086,20 @@ function App() {
               const sfx = shortForms[serviceType] || 'XX';
               const now = new Date();
               const day = String(now.getDate()).padStart(2, '0');
-              const year = now.getFullYear();
+              const month = now.toLocaleString('default', { month: 'short' }).toUpperCase();
+              const year = String(now.getFullYear()).substring(2); // e.g. 26 for 2026
               const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
               let rand1 = '';
-              for (let i = 0; i < 6; i++) {
+              for (let i = 0; i < 3; i++) {
                 rand1 += chars.charAt(Math.floor(Math.random() * chars.length));
               }
               let rand2 = '';
-              for (let i = 0; i < 6; i++) {
+              for (let i = 0; i < 3; i++) {
                 rand2 += chars.charAt(Math.floor(Math.random() * chars.length));
               }
-              return `XX${rand1}${day}${sfx}${year}${rand2}`;
+              // Format: XX + 3 rand + MONTH + DAY + SFX + 2-digit year + 3 rand
+              // Example: XX A7B JUN 04 WP 26 9X1 -> XXA7BJUN04WP269X1 (17 chars)
+              return `XX${rand1}${month}${day}${sfx}${year}${rand2}`;
             };
             const orderId = f.order_id || generateCoolOrderId(dealMsgServiceType);
 

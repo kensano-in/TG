@@ -4395,8 +4395,24 @@ class TelegramManager:
             if username_clean.startswith('@'):
                 username_clean = username_clean[1:]
             
-            # Retrieve target entity actively from Telegram servers to resolve it
-            entity = await self.client.get_entity(username_clean)
+            entity = None
+            # 1. Try if it's an integer ID
+            if username_clean.isdigit() or (username_clean.startswith('-') and username_clean[1:].isdigit()):
+                try:
+                    entity = await self.client.get_entity(int(username_clean))
+                except Exception:
+                    pass
+            
+            # 2. Try as string (username or phone number)
+            if not entity:
+                try:
+                    entity = await self.client.get_entity(username_clean)
+                except ValueError:
+                    if username_clean.isdigit():
+                        entity = await self.client.get_entity('+' + username_clean)
+                    else:
+                        raise
+                        
             await self.client.send_message(entity, text)
             return {"status": "success"}
         except Exception as e:
